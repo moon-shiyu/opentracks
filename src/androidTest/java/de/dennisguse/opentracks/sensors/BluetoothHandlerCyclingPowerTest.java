@@ -1,6 +1,7 @@
 package de.dennisguse.opentracks.sensors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 
@@ -33,6 +34,24 @@ public class BluetoothHandlerCyclingPowerTest {
 
         assertEquals(12, powerCadence.crank().crankRevolutionsCount());
         assertEquals(17125, powerCadence.crank().crankRevolutionsTime());
+    }
+
+    @Test
+    public void handlePayload_emitsPower() {
+        // given
+        RecordingSensorDataObserver observer = new RecordingSensorDataObserver();
+        BluetoothHandlerManagerCyclingPower subject = new BluetoothHandlerManagerCyclingPower();
+        BluetoothGattCharacteristic characteristic = new BluetoothGattCharacteristic(BluetoothHandlerManagerCyclingPower.CYCLING_POWER.serviceUUID(), 0, 0);
+        characteristic.setValue(new byte[]{0, 0, 40, 0});
+
+        // when
+        subject.handlePayload(observer, BluetoothHandlerManagerCyclingPower.CYCLING_POWER, "name", "address", characteristic);
+
+        // then
+        assertEquals(1, observer.changes.size());
+        assertTrue(observer.changes.get(0).value() instanceof BluetoothHandlerManagerCyclingPower.Data);
+        BluetoothHandlerManagerCyclingPower.Data data = (BluetoothHandlerManagerCyclingPower.Data) observer.changes.get(0).value();
+        assertEquals(40, data.power().getW(), 0.01);
     }
 
 }

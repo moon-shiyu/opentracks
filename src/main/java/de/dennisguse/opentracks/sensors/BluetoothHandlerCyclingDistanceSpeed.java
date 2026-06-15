@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.UUID;
 
 import de.dennisguse.opentracks.sensors.sensorData.AggregatorCyclingDistanceSpeed;
-import de.dennisguse.opentracks.sensors.sensorData.Raw;
 import de.dennisguse.opentracks.sensors.sensorData.SensorHandlerInterface;
 
 public class BluetoothHandlerCyclingDistanceSpeed implements SensorHandlerInterface {
@@ -34,7 +33,7 @@ public class BluetoothHandlerCyclingDistanceSpeed implements SensorHandlerInterf
     public void handlePayload(SensorManager.SensorDataChangedObserver observer, ServiceMeasurementUUID serviceMeasurementUUID, String sensorName, String address, BluetoothGattCharacteristic characteristic) {
         Pair<WheelData, BluetoothHandlerCyclingCadence.CrankData> data = parseCyclingCrankAndWheel(address, sensorName, characteristic);
         if (data.first != null) {
-            observer.onChange(new Raw<>(observer.getNow(), data.first));
+            emit(observer, data.first);
         }
     }
 

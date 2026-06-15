@@ -7,6 +7,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import java.util.Objects;
+import java.util.stream.Stream;
+
 import de.dennisguse.opentracks.data.models.AtmosphericPressure;
 import de.dennisguse.opentracks.data.models.Cadence;
 import de.dennisguse.opentracks.data.models.HeartRate;
@@ -193,13 +196,9 @@ public class SensorDataSet {
     public void reset() {
         Log.i(TAG, "Resetting data");
 
-        if (heartRate != null) heartRate.resetAggregated();
-        if (cyclingCadence != null) cyclingCadence.resetAggregated();
-        if (cyclingDistanceSpeed != null) cyclingDistanceSpeed.resetAggregated();
-        if (cyclingPower != null) cyclingPower.resetAggregated();
-        if (runningDistanceSpeedCadence != null) runningDistanceSpeedCadence.resetAggregated();
-        if (barometer != null) barometer.resetAggregated();
-        if (gps != null) gps.resetAggregated();
+        Stream.of(heartRate, cyclingCadence, cyclingDistanceSpeed, cyclingPower, runningDistanceSpeedCadence, barometer, gps)
+                .filter(Objects::nonNull)
+                .forEach(Aggregator::resetAggregated);
     }
 
     private void set(@NonNull Aggregator<?, ?> type, @Nullable Aggregator<?, ?> sensorData) {
