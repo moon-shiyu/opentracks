@@ -2,7 +2,7 @@ package de.dennisguse.opentracks.sensors;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 
-import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import java.util.List;
@@ -10,10 +10,8 @@ import java.util.UUID;
 
 import de.dennisguse.opentracks.data.models.HeartRate;
 import de.dennisguse.opentracks.sensors.sensorData.AggregatorHeartRate;
-import de.dennisguse.opentracks.sensors.sensorData.Raw;
-import de.dennisguse.opentracks.sensors.sensorData.SensorHandlerInterface;
 
-public class BluetoothHandlerManagerHeartRate implements SensorHandlerInterface {
+public class BluetoothHandlerManagerHeartRate extends AbstractBluetoothHandler<HeartRate> {
 
     public static final ServiceMeasurementUUID HEARTRATE = new ServiceMeasurementUUID(
             new UUID(0x180D00001000L, 0x800000805f9b34fbL),
@@ -41,12 +39,9 @@ public class BluetoothHandlerManagerHeartRate implements SensorHandlerInterface 
     }
 
     @Override
-    public void handlePayload(SensorManager.SensorDataChangedObserver observer, @NonNull ServiceMeasurementUUID serviceMeasurementUUID, String sensorName, String address, BluetoothGattCharacteristic characteristic) {
-        HeartRate heartRate = parseHeartRate(characteristic);
-
-        if (heartRate != null) {
-            observer.onChange(new Raw<>(observer.getNow(), heartRate));
-        }
+    @Nullable
+    protected HeartRate parseCharacteristic(BluetoothGattCharacteristic characteristic) {
+        return parseHeartRate(characteristic);
     }
 
     @VisibleForTesting

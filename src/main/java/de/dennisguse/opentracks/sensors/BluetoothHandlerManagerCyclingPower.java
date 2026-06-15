@@ -2,7 +2,7 @@ package de.dennisguse.opentracks.sensors;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 
-import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import java.util.List;
@@ -10,10 +10,8 @@ import java.util.UUID;
 
 import de.dennisguse.opentracks.data.models.Power;
 import de.dennisguse.opentracks.sensors.sensorData.AggregatorCyclingPower;
-import de.dennisguse.opentracks.sensors.sensorData.Raw;
-import de.dennisguse.opentracks.sensors.sensorData.SensorHandlerInterface;
 
-public class BluetoothHandlerManagerCyclingPower implements SensorHandlerInterface {
+public class BluetoothHandlerManagerCyclingPower extends AbstractBluetoothHandler<BluetoothHandlerManagerCyclingPower.Data> {
 
     public static final ServiceMeasurementUUID CYCLING_POWER = new ServiceMeasurementUUID(
             new UUID(0x181800001000L, 0x800000805f9b34fbL),
@@ -31,12 +29,9 @@ public class BluetoothHandlerManagerCyclingPower implements SensorHandlerInterfa
     }
 
     @Override
-    public void handlePayload(SensorManager.SensorDataChangedObserver observer, @NonNull ServiceMeasurementUUID serviceMeasurementUUID, String sensorName, String address, BluetoothGattCharacteristic characteristic) {
-        Data cyclingPower = parseCyclingPower(characteristic);
-
-        if (cyclingPower != null) {
-            observer.onChange(new Raw<>(observer.getNow(), cyclingPower));
-        }
+    @Nullable
+    protected Data parseCharacteristic(BluetoothGattCharacteristic characteristic) {
+        return parseCyclingPower(characteristic);
     }
 
 

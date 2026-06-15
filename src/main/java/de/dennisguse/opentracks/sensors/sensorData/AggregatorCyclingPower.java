@@ -7,8 +7,8 @@ import de.dennisguse.opentracks.sensors.BluetoothHandlerManagerCyclingPower;
 
 public class AggregatorCyclingPower extends Aggregator<BluetoothHandlerManagerCyclingPower.Data, Power> {
 
-    public AggregatorCyclingPower(String name, String address) {
-        super(name, address);
+    public AggregatorCyclingPower(String sensorAddress, String sensorName) {
+        super(sensorAddress, sensorName);
     }
 
     @Override

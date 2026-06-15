@@ -6,8 +6,8 @@ import de.dennisguse.opentracks.data.models.HeartRate;
 
 public class AggregatorHeartRate extends Aggregator<HeartRate, HeartRate> {
 
-    public AggregatorHeartRate(String name, String address) {
-        super(name, address);
+    public AggregatorHeartRate(String sensorAddress, String sensorName) {
+        super(sensorAddress, sensorName);
     }
 
     @Override

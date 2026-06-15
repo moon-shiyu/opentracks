@@ -8,10 +8,8 @@ import java.util.UUID;
 import de.dennisguse.opentracks.data.models.AtmosphericPressure;
 import de.dennisguse.opentracks.sensors.sensorData.Aggregator;
 import de.dennisguse.opentracks.sensors.sensorData.AggregatorBarometer;
-import de.dennisguse.opentracks.sensors.sensorData.Raw;
-import de.dennisguse.opentracks.sensors.sensorData.SensorHandlerInterface;
 
-public class BluetoothHandlerBarometricPressure implements SensorHandlerInterface {
+public class BluetoothHandlerBarometricPressure extends AbstractBluetoothHandler<AtmosphericPressure> {
     private static final UUID ENVIRONMENTAL_SENSING_SERVICE = new UUID(0x181A00001000L, 0x800000805f9b34fbL);
     public static final ServiceMeasurementUUID BAROMETRIC_PRESSURE = new ServiceMeasurementUUID(
             ENVIRONMENTAL_SENSING_SERVICE,
@@ -29,11 +27,8 @@ public class BluetoothHandlerBarometricPressure implements SensorHandlerInterfac
     }
 
     @Override
-    public void handlePayload(SensorManager.SensorDataChangedObserver observer, ServiceMeasurementUUID serviceMeasurementUUID, String sensorName, String address, BluetoothGattCharacteristic characteristic) {
-        AtmosphericPressure value = parseEnvironmentalSensing(characteristic);
-        if (value == null) return;
-
-        observer.onChange(new Raw<>(observer.getNow(), value));
+    protected AtmosphericPressure parseCharacteristic(BluetoothGattCharacteristic characteristic) {
+        return parseEnvironmentalSensing(characteristic);
     }
 
     /**

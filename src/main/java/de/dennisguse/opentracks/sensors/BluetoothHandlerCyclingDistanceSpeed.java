@@ -4,16 +4,15 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.util.Pair;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import java.util.List;
 import java.util.UUID;
 
 import de.dennisguse.opentracks.sensors.sensorData.AggregatorCyclingDistanceSpeed;
-import de.dennisguse.opentracks.sensors.sensorData.Raw;
-import de.dennisguse.opentracks.sensors.sensorData.SensorHandlerInterface;
 
-public class BluetoothHandlerCyclingDistanceSpeed implements SensorHandlerInterface {
+public class BluetoothHandlerCyclingDistanceSpeed extends AbstractBluetoothHandler<BluetoothHandlerCyclingDistanceSpeed.WheelData> {
 
     public static final ServiceMeasurementUUID CYCLING_SPEED_CADENCE = new ServiceMeasurementUUID(
             new UUID(0x181600001000L, 0x800000805f9b34fbL),
@@ -31,11 +30,11 @@ public class BluetoothHandlerCyclingDistanceSpeed implements SensorHandlerInterf
     }
 
     @Override
-    public void handlePayload(SensorManager.SensorDataChangedObserver observer, ServiceMeasurementUUID serviceMeasurementUUID, String sensorName, String address, BluetoothGattCharacteristic characteristic) {
-        Pair<WheelData, BluetoothHandlerCyclingCadence.CrankData> data = parseCyclingCrankAndWheel(address, sensorName, characteristic);
-        if (data.first != null) {
-            observer.onChange(new Raw<>(observer.getNow(), data.first));
-        }
+    @Nullable
+    protected WheelData parseCharacteristic(BluetoothGattCharacteristic characteristic) {
+        Pair<WheelData, BluetoothHandlerCyclingCadence.CrankData> data =
+                parseCyclingCrankAndWheel(address, sensorName, characteristic);
+        return data != null ? data.first : null;
     }
 
 
