@@ -50,6 +50,10 @@ public class StartRecording extends AbstractAPIActivity {
     }
 
     private void startDashboardAPI(@NonNull Track.Id trackId, @NonNull Bundle bundle) {
+        // Privacy: the Data API hand-off only happens when BOTH (a) the user enabled the dashboard
+        // feature (checked by the caller via isPublicAPIDashboardEnabled) and (b) the requesting app
+        // supplied an explicit STATS_TARGET_PACKAGE + STATS_TARGET_CLASS. The resulting Intent carries
+        // only a temporary read grant (see IntentDashboardUtils).
         String targetPackage = bundle.getString(EXTRA_STATS_TARGET_PACKAGE, null);
         String targetClass = bundle.getString(EXTRA_STATS_TARGET_CLASS, null);
         if (targetClass != null && targetPackage != null) {

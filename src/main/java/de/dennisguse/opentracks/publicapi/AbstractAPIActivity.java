@@ -21,11 +21,7 @@ abstract class AbstractAPIActivity extends AppCompatActivity {
         if (!isFinishing() && !isDestroyed()) {
             execute(service);
         }
-        if (isPostExecuteStopService()) {
-            connection.unbindAndStop(AbstractAPIActivity.this);
-        } else {
-            connection.unbind(AbstractAPIActivity.this);
-        }
+        releaseService(connection);
         finish();
     };
 
@@ -35,6 +31,8 @@ abstract class AbstractAPIActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         splashScreen.setKeepOnScreenCondition(() -> true);
 
+        // Privacy gate: the public API is opt-in. While disabled, external requests are ignored and
+        // no recording service is bound/started and no data is touched.
         if (PreferencesUtils.isPublicAPIenabled()) {
             Log.i(TAG, "Received and trying to execute requested action.");
             if (requiresForeground()) {
@@ -55,5 +53,18 @@ abstract class AbstractAPIActivity extends AppCompatActivity {
 
     protected boolean requiresForeground() {
         return false;
+    }
+
+    /**
+     * Releases the recording service once {@link #execute(TrackRecordingService)} has run.
+     * One-shot calls (e.g. CreateMarker) only unbind and leave the service running; calls that stop a
+     * recording ({@link #isPostExecuteStopService()} == true) additionally stop the service.
+     */
+    private void releaseService(TrackRecordingServiceConnection connection) {
+        if (isPostExecuteStopService()) {
+            connection.unbindAndStop(this);
+        } else {
+            connection.unbind(this);
+        }
     }
 }
