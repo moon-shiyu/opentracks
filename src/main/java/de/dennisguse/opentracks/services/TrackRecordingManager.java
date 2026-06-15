@@ -17,6 +17,7 @@ import de.dennisguse.opentracks.R;
 import de.dennisguse.opentracks.data.ContentProviderUtils;
 import de.dennisguse.opentracks.data.models.ActivityType;
 import de.dennisguse.opentracks.data.models.Distance;
+import de.dennisguse.opentracks.data.models.Marker;
 import de.dennisguse.opentracks.data.models.Track;
 import de.dennisguse.opentracks.data.models.TrackPoint;
 import de.dennisguse.opentracks.sensors.sensorData.SensorDataSet;
@@ -32,6 +33,9 @@ public class TrackRecordingManager implements SharedPreferences.OnSharedPreferen
     private static final String TAG = TrackRecordingManager.class.getSimpleName();
 
     private static final AltitudeCorrectionManager ALTITUDE_CORRECTION_MANAGER = new AltitudeCorrectionManager();
+
+    // Minimum time between two stored TrackPoints that carry neither a location nor sensor distance.
+    private static final Duration MIN_STORAGE_INTERVAL_WITHOUT_LOCATION = Duration.ofSeconds(10); // TODO Should be configurable.
 
     private final Runnable ON_IDLE = this::onIdle;
 
@@ -175,8 +179,7 @@ public class TrackRecordingManager implements SharedPreferences.OnSharedPreferen
         }
 
         if (!trackPoint.hasLocation() && !trackPoint.hasSensorDistance()) {
-            Duration minStorageInterval = Duration.ofSeconds(10); // TODO Should be configurable.
-            boolean shouldStore = lastStoredTrackPoint.getTime().plus(minStorageInterval)
+            boolean shouldStore = lastStoredTrackPoint.getTime().plus(MIN_STORAGE_INTERVAL_WITHOUT_LOCATION)
                     .isBefore(trackPoint.getTime());
             if (!shouldStore) {
                 Log.d(TAG, "Ignoring TrackPoint as it has no distance (and sensor data is not new enough).");
@@ -271,6 +274,15 @@ public class TrackRecordingManager implements SharedPreferences.OnSharedPreferen
 
         lastStoredTrackPoint = null;
         lastStoredTrackPointWithLocation = null;
+    }
+
+    Marker.Id createMarker() {
+        TrackPoint trackPoint = getLastStoredTrackPointWithLocation();
+        if (trackPoint == null) {
+            return null;
+        }
+        Marker marker = new Marker(trackId, trackPoint);
+        return contentProviderUtils.insertMarker(marker);
     }
 
     @Override

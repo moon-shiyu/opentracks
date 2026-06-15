@@ -79,25 +79,22 @@ public class TrackRecordingServiceConnection {
     }
 
     public void bind(@NonNull Context context) {
-        if (trackRecordingService != null) {
-            callback.onConnected(trackRecordingService, this);
-            return;
-        }
-
-        Log.i(TAG, "Binding the service.");
-
-        context.bindService(new Intent(context, TrackRecordingService.class), serviceConnection, SERVICE_BIND_FLAG);
+        bindInternal(context, SERVICE_BIND_FLAG, "Binding the service.");
     }
 
     public void bindWithStart(@NonNull Context context) {
+        bindInternal(context, Context.BIND_AUTO_CREATE + SERVICE_BIND_FLAG, "Binding and starting the service (not in foreground).");
+    }
+
+    private void bindInternal(@NonNull Context context, int flags, String logMessage) {
         if (trackRecordingService != null) {
             callback.onConnected(trackRecordingService, this);
             return;
         }
 
-        Log.i(TAG, "Binding and starting the service (not in foreground).");
+        Log.i(TAG, logMessage);
 
-        context.bindService(new Intent(context, TrackRecordingService.class), serviceConnection,  Context.BIND_AUTO_CREATE + SERVICE_BIND_FLAG);
+        context.bindService(new Intent(context, TrackRecordingService.class), serviceConnection, flags);
     }
 
     /**
@@ -150,11 +147,7 @@ public class TrackRecordingServiceConnection {
     }
 
     public static void execute(Context context, Callback callback) {
-        Callback withUnbind = (service, connection) -> {
-            callback.onConnected(service, connection);
-            connection.unbind(context);
-        };
-        new TrackRecordingServiceConnection(withUnbind)
+        new TrackRecordingServiceConnection(unbindAfter(context, callback))
                 .bindWithStart(context);
     }
 
@@ -165,13 +158,19 @@ public class TrackRecordingServiceConnection {
             }
         }
 
-        Callback withUnbind = (service, connection) -> {
-            callback.onConnected(service, connection);
-            connection.unbind(context);
-        };
-        new TrackRecordingServiceConnection(withUnbind)
+        new TrackRecordingServiceConnection(unbindAfter(context, callback))
                 .bind(context);
 
         ContextCompat.startForegroundService(context, new Intent(context, TrackRecordingService.class));
+    }
+
+    /**
+     * Wraps a callback so the connection unbinds itself right after the callback ran (one-shot use).
+     */
+    private static Callback unbindAfter(Context context, Callback callback) {
+        return (service, connection) -> {
+            callback.onConnected(service, connection);
+            connection.unbind(context);
+        };
     }
 }

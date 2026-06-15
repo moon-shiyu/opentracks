@@ -16,6 +16,7 @@
 
 package de.dennisguse.opentracks.services;
 
+import android.app.Notification;
 import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -36,7 +37,6 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
 
-import de.dennisguse.opentracks.data.ContentProviderUtils;
 import de.dennisguse.opentracks.data.models.Distance;
 import de.dennisguse.opentracks.data.models.Marker;
 import de.dennisguse.opentracks.data.models.Track;
@@ -191,8 +191,7 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
     }
 
     private void startRecording() {
-        // Update instance variables
-        handler.postDelayed(updateRecordingData, RECORDING_DATA_UPDATE_INTERVAL.toMillis());
+        startUpdateRecordingData();
 
         startSensors();
 
@@ -216,7 +215,12 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
         wakeLock = SystemUtils.acquireWakeLock(this, wakeLock);
         trackPointCreator.start(this, handler);
 
-        ServiceCompat.startForeground(this, TrackRecordingServiceNotificationManager.NOTIFICATION_ID, notificationManager.setGPSonlyStarted(this), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION + ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
+        enterForeground();
+    }
+
+    private void enterForeground() {
+        Notification notification = notificationManager.setGPSonlyStarted(this);
+        ServiceCompat.startForeground(this, TrackRecordingServiceNotificationManager.NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION + ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
     }
 
     public void endCurrentTrack() {
@@ -239,24 +243,21 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
 
     void stopSensors() {
         trackPointCreator.stop();
-        stopForeground(true);
-        notificationManager.cancelNotification();
+        exitForeground();
         wakeLock = SystemUtils.releaseWakeLock(wakeLock);
         gpsStatusObservable.postValue(STATUS_GPS_DEFAULT);
+    }
+
+    private void exitForeground() {
+        stopForeground(true);
+        notificationManager.cancelNotification();
     }
 
     public Marker.Id createMarker() {
         if (!isRecording()) {
             return null;
         }
-
-        //TODO This contains some duplication to TrackRecodingActivity's Marker creation
-        TrackPoint trackPoint = trackRecordingManager.getLastStoredTrackPointWithLocation();
-        if (trackPoint == null) {
-            return null;
-        }
-        Marker marker = new Marker(recordingStatus.trackId(), trackPoint);
-        return new ContentProviderUtils(this).insertMarker(marker);
+        return trackRecordingManager.createMarker();
     }
 
     @Override
@@ -275,17 +276,28 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
     public void newGpsStatus(GpsStatusValue gpsStatusValue) {
         Log.i(TAG, "newGpsStatus: " + gpsStatusValue.message);
 
-        if (notificationManager == null) {
-
-            StringWriter writer = new StringWriter();
-            Exception e = new RuntimeException("TrackRecording.newGpsStatus() called after onDestroy(); objectID: " + this + " with thread: " + Thread.currentThread());
-            e.printStackTrace(new PrintWriter(writer));
-
-            Log.e(TAG, e.getMessage() + " " + writer);
+        if (isDestroyed()) {
+            logCalledAfterDestroy("newGpsStatus");
             return;
         }
         notificationManager.updateContent(getString(gpsStatusValue.message));
         gpsStatusObservable.postValue(gpsStatusValue);
+    }
+
+    /**
+     * The service has begun tearing down its collaborators in {@link #onDestroy()}.
+     * Sensor callbacks may still arrive briefly afterwards and must be ignored.
+     */
+    private boolean isDestroyed() {
+        return notificationManager == null;
+    }
+
+    private void logCalledAfterDestroy(String method) {
+        StringWriter writer = new StringWriter();
+        Exception e = new RuntimeException("TrackRecording." + method + "() called after onDestroy(); objectID: " + this + " with thread: " + Thread.currentThread());
+        e.printStackTrace(new PrintWriter(writer));
+
+        Log.e(TAG, e.getMessage() + " " + writer);
     }
 
     @Deprecated
@@ -324,6 +336,10 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
 
     public void onIdle() {
         voiceAnnouncementManager.announceIdle();
+    }
+
+    private void startUpdateRecordingData() {
+        handler.postDelayed(updateRecordingData, RECORDING_DATA_UPDATE_INTERVAL.toMillis());
     }
 
     @VisibleForTesting

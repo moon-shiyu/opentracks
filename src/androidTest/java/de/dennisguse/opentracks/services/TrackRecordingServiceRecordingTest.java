@@ -2,6 +2,8 @@ package de.dennisguse.opentracks.services;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import android.content.Context;
 import android.content.Intent;
@@ -33,6 +35,7 @@ import de.dennisguse.opentracks.data.ContentProviderUtils;
 import de.dennisguse.opentracks.data.models.AltitudeGainLoss;
 import de.dennisguse.opentracks.data.models.Distance;
 import de.dennisguse.opentracks.data.models.HeartRate;
+import de.dennisguse.opentracks.data.models.Marker;
 import de.dennisguse.opentracks.data.models.Position;
 import de.dennisguse.opentracks.data.models.Speed;
 import de.dennisguse.opentracks.data.models.Track;
@@ -746,6 +749,41 @@ public class TrackRecordingServiceRecordingTest {
                                 Speed.of(0))) //Sensor data is now outdated, but we do not fall back to GPS.
                         .setSensorDistance(Distance.of(0))
         ), TestDataUtil.getTrackPoints(contentProviderUtils, trackId));
+    }
+
+    /**
+     * A Marker can only be created while recording and uses the last stored TrackPoint with a location.
+     * Validates that marker persistence (moved into TrackRecordingManager) keeps the same behavior.
+     */
+    @MediumTest
+    @Test
+    public void testCreateMarker() {
+        // given
+        TrackPointCreator trackPointCreator = service.getTrackPointCreator();
+        String startTime = "2020-02-02T02:02:02Z";
+        trackPointCreator.setClock(startTime);
+        Track.Id trackId = service.startNewTrack();
+
+        String gps1 = "2020-02-02T02:02:03Z";
+        TrackRecordingServiceTestUtils.sendGPSLocation(trackPointCreator, gps1, 45.0, 35.0, 1, 15);
+
+        // when
+        Marker.Id markerId = service.createMarker();
+
+        // then
+        assertNotNull(markerId);
+        List<Marker> markers = contentProviderUtils.getMarkers(trackId);
+        assertEquals(1, markers.size());
+
+        // when - no longer recording
+        String stopTime = "2020-02-02T02:02:12Z";
+        trackPointCreator.setClock(stopTime);
+        service.endCurrentTrack();
+        Marker.Id markerWhenStopped = service.createMarker();
+
+        // then
+        assertNull(markerWhenStopped);
+        assertEquals(1, contentProviderUtils.getMarkers(trackId).size());
     }
 
     private void mockAltitudeChange(TrackPointCreator trackPointCreator, float altitudeGain) {

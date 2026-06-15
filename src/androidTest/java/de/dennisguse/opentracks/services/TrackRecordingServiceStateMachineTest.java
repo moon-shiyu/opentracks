@@ -265,4 +265,69 @@ public class TrackRecordingServiceStateMachineTest {
         assertNotNull(trackId);
         assertNull(newTrackId);
     }
+
+    @MediumTest
+    @Test
+    public void gps_tryStartSensors_idempotent() throws InterruptedException {
+        // given
+        assertEquals(GpsStatusValue.GPS_NONE, service.getGpsStatusObservable().getValue());
+
+        // when
+        service.tryStartSensors();
+        service.tryStartSensors();
+        Thread.sleep(1000);
+
+        // then
+        assertFalse(service.isRecording());
+        assertEquals(GpsStatusValue.GPS_ENABLED, service.getGpsStatusObservable().getValue());
+
+        // cleanup
+        service.stopSensors();
+    }
+
+    @MediumTest
+    @Test
+    public void recording_tryStartSensors_noop() throws InterruptedException {
+        // given
+        Track.Id trackId = service.startNewTrack();
+        Thread.sleep(1000);
+        assertTrue(service.isRecording());
+        assertEquals(GpsStatusValue.GPS_ENABLED, service.getGpsStatusObservable().getValue());
+
+        // when
+        service.tryStartSensors();
+        Thread.sleep(1000);
+
+        // then
+        assertTrue(service.isRecording());
+        assertEquals(new RecordingStatus(trackId), service.getRecordingStatusObservable().getValue());
+        assertEquals(GpsStatusValue.GPS_ENABLED, service.getGpsStatusObservable().getValue());
+
+        // cleanup
+        service.endCurrentTrack();
+    }
+
+    @MediumTest
+    @Test
+    public void recording_startWhileSensorsAlreadyStarted() throws InterruptedException {
+        // given: GPS-only sensors started, but not yet recording
+        service.tryStartSensors();
+        Thread.sleep(1000);
+        assertFalse(service.isRecording());
+        assertEquals(GpsStatusValue.GPS_ENABLED, service.getGpsStatusObservable().getValue());
+
+        // when: recording starts while sensors are already running
+        Track.Id trackId = service.startNewTrack();
+        Thread.sleep(1000);
+
+        // then: recording is active and the running sensors stay enabled
+        assertNotNull(trackId);
+        assertTrue(service.isRecording());
+        assertEquals(new RecordingStatus(trackId), service.getRecordingStatusObservable().getValue());
+        assertNotEquals(TrackRecordingService.NOT_RECORDING, service.getRecordingDataObservable().getValue());
+        assertEquals(GpsStatusValue.GPS_ENABLED, service.getGpsStatusObservable().getValue());
+
+        // cleanup
+        service.endCurrentTrack();
+    }
 }
