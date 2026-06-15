@@ -249,4 +249,25 @@ public class FileUtils {
 
         return files;
     }
+
+    /**
+     * Normalizes a photo filename from a KMZ archive for internal storage.
+     * Handles backward compatibility with pre-v3.5.0 photo URLs that used content:// or file:// schemes.
+     *
+     * @param fileName the file name from the archive
+     */
+    public static String importNameForFilename(String fileName) {
+        // TODO this tricky code for maintain backward compatibility must be deleted some day.
+        /*
+         * In versions before v3.5.0 photo URL in KML files were wrong.
+         * For compatibility reasons it checks if fileName begins with "content://" or "file://".
+         * All fileName begins with "content:/" or "file://" are cooked.
+         * We cannot guess what's the folder name where images are so we use "images" that was the folder name expected in versions before v3.5.0.
+         */
+        if (fileName.startsWith("content://") || fileName.startsWith("file://")) {
+            fileName = "images/" + fileName.substring(fileName.lastIndexOf(File.separatorChar) + 1);
+        }
+
+        return fileName.replace(File.separatorChar, '-');
+    }
 }

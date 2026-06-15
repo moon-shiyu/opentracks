@@ -96,7 +96,7 @@ public class KMZTrackImporter {
 
                 String fileName = zipEntry.getName();
                 if (hasImageExtension(fileName)) {
-                    readAndSaveImageFile(zipInputStream, trackId, importNameForFilename(fileName));
+                    readAndSaveImageFile(zipInputStream, trackId, FileUtils.importNameForFilename(fileName));
                 }
 
                 zipInputStream.closeEntry();
@@ -111,20 +111,11 @@ public class KMZTrackImporter {
      * The name generator is simple: change the path fileName with '-' instead of File.separatorChar.
      *
      * @param fileName the file name.
+     * @deprecated Use {@link FileUtils#importNameForFilename(String)}
      */
+    @Deprecated
     public static String importNameForFilename(String fileName) {
-        // TODO this tricky code for maintain backward compatibility must be deleted some day.
-        /*
-         * In versions before v3.5.0 photo URL in KML files were wrong.
-         * For compatibility reasons it checks if fileName begins with "content://" or "file://".
-         * All fileName begins with "content:/" or "file://" are cooked.
-         * We cannot guess what's the folder name where images are so we use "images" that was the folder name expected in versions before v3.5.0.
-         */
-        if (fileName.startsWith("content://") || fileName.startsWith("file://")) {
-            fileName = "images/" + fileName.substring(fileName.lastIndexOf(File.separatorChar) + 1);
-        }
-
-        return fileName.replace(File.separatorChar, '-');
+        return FileUtils.importNameForFilename(fileName);
     }
 
     /**

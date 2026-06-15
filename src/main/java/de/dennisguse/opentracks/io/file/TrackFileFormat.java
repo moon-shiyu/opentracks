@@ -17,6 +17,10 @@ import de.dennisguse.opentracks.io.file.exporter.GPXTrackExporter;
 import de.dennisguse.opentracks.io.file.exporter.KMLTrackExporter;
 import de.dennisguse.opentracks.io.file.exporter.KMZTrackExporter;
 import de.dennisguse.opentracks.io.file.exporter.TrackExporter;
+import de.dennisguse.opentracks.io.file.importer.GPXTrackImporter;
+import de.dennisguse.opentracks.io.file.importer.KMLTrackImporter;
+import de.dennisguse.opentracks.io.file.importer.TrackImporter;
+import de.dennisguse.opentracks.io.file.importer.XMLImporter;
 
 /**
  * Definition of all possible track formats.
@@ -38,6 +42,16 @@ public enum TrackFileFormat {
 
         public String getExtension() {
             return "kml";
+        }
+
+        @Override
+        public boolean supportsImport() {
+            return true;
+        }
+
+        @Override
+        public XMLImporter.TrackParser createTrackImporter(@NonNull Context context, @NonNull TrackImporter trackImporter) {
+            return new KMLTrackImporter(context, trackImporter);
         }
     },
 
@@ -107,6 +121,16 @@ public enum TrackFileFormat {
         public String getExtension() {
             return "gpx";
         }
+
+        @Override
+        public boolean supportsImport() {
+            return true;
+        }
+
+        @Override
+        public XMLImporter.TrackParser createTrackImporter(@NonNull Context context, @NonNull TrackImporter trackImporter) {
+            return new GPXTrackImporter(context, trackImporter);
+        }
     },
 
     CSV("CSV") {
@@ -171,6 +195,39 @@ public enum TrackFileFormat {
      */
     public boolean includesPhotos() {
         return false;
+    }
+
+    /**
+     * Returns whether this format supports importing track files.
+     */
+    public boolean supportsImport() {
+        return false;
+    }
+
+    /**
+     * Creates a track importer for this format.
+     * Only valid for formats where {@link #supportsImport()} returns true.
+     *
+     * @param context       the context
+     * @param trackImporter the shared track importer accumulator
+     */
+    public XMLImporter.TrackParser createTrackImporter(@NonNull Context context, @NonNull TrackImporter trackImporter) {
+        return null;
+    }
+
+    /**
+     * Looks up a track file format by extension that supports import.
+     *
+     * @param extension the file extension (e.g., "gpx", "kml")
+     * @return the matching format, or null if none supports import for this extension
+     */
+    public static TrackFileFormat forImportExtension(String extension) {
+        for (TrackFileFormat format : values()) {
+            if (format.supportsImport() && format.getExtension().equals(extension)) {
+                return format;
+            }
+        }
+        return null;
     }
 
     /**

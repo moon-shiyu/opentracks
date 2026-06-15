@@ -58,16 +58,17 @@ public class ImportService extends JobIntentService {
 
             TrackImporter trackImporter = new TrackImporter(this, new ContentProviderUtils(this), maxRecordingDistance, preventReimport);
 
-            if (TrackFileFormat.GPX.getExtension().equals(fileExtension)) {
-                trackIds.addAll(new XMLImporter(new GPXTrackImporter(this, trackImporter)).importFile(this, file.getUri()));
-            } else if (TrackFileFormat.KML_WITH_TRACKDETAIL_AND_SENSORDATA.getExtension().equals(fileExtension)) {
-                trackIds.addAll(new XMLImporter(new KMLTrackImporter(this, trackImporter)).importFile(this, file.getUri()));
-            } else if (TrackFileFormat.KMZ_WITH_TRACKDETAIL_AND_SENSORDATA_AND_PICTURES.getExtension().equals(fileExtension)) {
+            if (TrackFileFormat.KMZ_WITH_TRACKDETAIL_AND_SENSORDATA_AND_PICTURES.getExtension().equals(fileExtension)) {
+                // KMZ uses ZIP-based import (not SAX), so it has its own code path
                 trackIds.addAll(new KMZTrackImporter(this, trackImporter).importFile(file.getUri()));
             } else {
-                Log.d(TAG, "Unsupported file format.");
-                sendResult(ImportServiceResultReceiver.RESULT_CODE_ERROR, null, file, getString(R.string.import_unsupported_format));
-                return;
+                TrackFileFormat format = TrackFileFormat.forImportExtension(fileExtension);
+                if (format == null) {
+                    Log.d(TAG, "Unsupported file format.");
+                    sendResult(ImportServiceResultReceiver.RESULT_CODE_ERROR, null, file, getString(R.string.import_unsupported_format));
+                    return;
+                }
+                trackIds.addAll(new XMLImporter(format.createTrackImporter(this, trackImporter)).importFile(this, file.getUri()));
             }
 
             if (!trackIds.isEmpty()) {

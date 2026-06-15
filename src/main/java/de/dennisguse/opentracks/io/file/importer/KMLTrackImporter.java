@@ -22,24 +22,19 @@ import android.net.Uri;
 import android.util.Log;
 
 import org.xml.sax.Attributes;
-import org.xml.sax.Locator;
 import org.xml.sax.SAXException;
-import org.xml.sax.helpers.DefaultHandler;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 
 import de.dennisguse.opentracks.data.models.Distance;
 import de.dennisguse.opentracks.data.models.Marker;
 import de.dennisguse.opentracks.data.models.Position;
 import de.dennisguse.opentracks.data.models.Speed;
-import de.dennisguse.opentracks.data.models.Track;
 import de.dennisguse.opentracks.data.models.TrackPoint;
-import de.dennisguse.opentracks.io.file.exporter.KMLTrackExporter;
+import de.dennisguse.opentracks.io.file.KMLConstants;
 import de.dennisguse.opentracks.util.StringUtils;
 
 /**
@@ -47,11 +42,11 @@ import de.dennisguse.opentracks.util.StringUtils;
  *
  * @author Jimmy Shih
  */
-public class KMLTrackImporter extends DefaultHandler implements XMLImporter.TrackParser {
+public class KMLTrackImporter extends AbstractSAXTrackImporter {
 
     private static final String TAG = KMLTrackImporter.class.getSimpleName();
 
-    private static final String MARKER_STYLE = "#" + KMLTrackExporter.MARKER_STYLE;
+    private static final String MARKER_STYLE = "#" + KMLConstants.MARKER_STYLE;
 
     private static final String TAG_COORDINATES = "coordinates";
     private static final String TAG_DESCRIPTION = "description";
@@ -87,13 +82,6 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
     // Until v4.13.0, was in contradiction with KML2.3 standard; keeping backward compatibility.
     public static final String EXTENDED_DATA_TYPE_HEART_RATE_LEGACY = "heart_rate";
 
-    private Locator locator;
-
-    private final Context context;
-
-    // Belongs to the current track
-    private ZoneOffset zoneOffset;
-
     private final ArrayList<Instant> whenList = new ArrayList<>();
     private final ArrayList<Position> positionList = new ArrayList<>();
 
@@ -110,11 +98,6 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
     private final ArrayList<Float> accuracyHorizontal = new ArrayList<>();
     private final ArrayList<Float> accuracyVertical = new ArrayList<>();
 
-    private final ArrayList<Marker> markers = new ArrayList<>();
-
-    // The current element content
-    private String content = "";
-
     private String name;
     private String description;
     private String activityType;
@@ -126,16 +109,8 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
     private Uri photoUrl;
     private String uuid;
 
-    private final TrackImporter trackImporter;
-
     public KMLTrackImporter(Context context, TrackImporter trackImporter) {
-        this.context = context;
-        this.trackImporter = trackImporter;
-    }
-
-    @Override
-    public void setDocumentLocator(Locator locator) {
-        this.locator = locator;
+        super(context, trackImporter);
     }
 
     @Override
@@ -157,11 +132,6 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
     }
 
     @Override
-    public void characters(char[] ch, int start, int length) {
-        content += new String(ch, start, length);
-    }
-
-    @Override
     public void endElement(String uri, String localName, String tag) throws SAXException {
         switch (tag) {
             case TAG_KML -> onFileEnd();
@@ -177,12 +147,12 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
             case TAG_COORD, TAG_KML22_COORD -> onCoordEnded();
             case TAG_VALUE, TAG_KML22_VALUE -> {
                 switch (dataType) {
-                    case KMLTrackExporter.EXTENDED_DATA_ACTIVITY_TYPE -> {
+                    case KMLConstants.EXTENDED_DATA_ACTIVITY_TYPE -> {
                         if (content != null) {
                             activityType = content.trim();
                         }
                     }
-                    case KMLTrackExporter.EXTENDED_DATA_TYPE_LOCALIZED -> {
+                    case KMLConstants.EXTENDED_DATA_TYPE_LOCALIZED -> {
                         if (content != null) {
                             activityTypeLocalized = content.trim();
                         }
@@ -413,7 +383,7 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
     }
 
     private void onExtendedDataValueEnd() throws SAXException {
-        if (dataType.equals(KMLTrackExporter.EXTENDED_DATA_TYPE_TRACKPOINT)) {
+        if (dataType.equals(KMLConstants.EXTENDED_DATA_TYPE_TRACKPOINT)) {
             trackpointTypeList.add(content != null ? content.trim() : null);
             return;
         }
@@ -429,44 +399,20 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
             }
         }
         switch (dataType) {
-            case KMLTrackExporter.EXTENDED_DATA_TYPE_SPEED -> sensorSpeedList.add(value);
-            case KMLTrackExporter.EXTENDED_DATA_TYPE_DISTANCE -> sensorDistanceList.add(value);
-            case KMLTrackExporter.EXTENDED_DATA_TYPE_POWER -> sensorPowerList.add(value);
-            case KMLTrackExporter.EXTENDED_DATA_TYPE_HEARTRATE,
+            case KMLConstants.EXTENDED_DATA_TYPE_SPEED -> sensorSpeedList.add(value);
+            case KMLConstants.EXTENDED_DATA_TYPE_DISTANCE -> sensorDistanceList.add(value);
+            case KMLConstants.EXTENDED_DATA_TYPE_POWER -> sensorPowerList.add(value);
+            case KMLConstants.EXTENDED_DATA_TYPE_HEARTRATE,
                  EXTENDED_DATA_TYPE_HEART_RATE_LEGACY -> sensorHeartRateList.add(value);
-            case KMLTrackExporter.EXTENDED_DATA_TYPE_CADENCE -> sensorCadenceList.add(value);
-            case KMLTrackExporter.EXTENDED_DATA_TYPE_ALTITUDE_GAIN -> altitudeGainList.add(value);
-            case KMLTrackExporter.EXTENDED_DATA_TYPE_ALTITUDE_LOSS -> altitudeLossList.add(value);
-            case KMLTrackExporter.EXTENDED_DATA_TYPE_ACCURACY_HORIZONTAL ->
+            case KMLConstants.EXTENDED_DATA_TYPE_CADENCE -> sensorCadenceList.add(value);
+            case KMLConstants.EXTENDED_DATA_TYPE_ALTITUDE_GAIN -> altitudeGainList.add(value);
+            case KMLConstants.EXTENDED_DATA_TYPE_ALTITUDE_LOSS -> altitudeLossList.add(value);
+            case KMLConstants.EXTENDED_DATA_TYPE_ACCURACY_HORIZONTAL ->
                     accuracyHorizontal.add(value);
-            case KMLTrackExporter.EXTENDED_DATA_TYPE_ACCURACY_VERTICAL ->
+            case KMLConstants.EXTENDED_DATA_TYPE_ACCURACY_VERTICAL ->
                     accuracyVertical.add(value);
             default ->
                     Log.w(TAG, "Data from extended data " + dataType + " is not (yet) supported.");
         }
-    }
-
-    private String createErrorMessage(String message) {
-        return String.format(Locale.US, "Parsing error at line: %d column: %d. %s", locator.getLineNumber(), locator.getColumnNumber(), message);
-    }
-
-    private void onFileEnd() {
-        trackImporter.addMarkers(markers);
-        trackImporter.finish();
-    }
-
-    @Override
-    public DefaultHandler getHandler() {
-        return this;
-    }
-
-    @Override
-    public List<Track.Id> getImportTrackIds() {
-        return trackImporter.getTrackIds();
-    }
-
-    @Override
-    public void cleanImport() {
-        trackImporter.cleanImport();
     }
 }

@@ -57,7 +57,7 @@ public class XMLImporter {
         }
     }
 
-    interface TrackParser {
+    public interface TrackParser {
         @Deprecated
         DefaultHandler getHandler();
 

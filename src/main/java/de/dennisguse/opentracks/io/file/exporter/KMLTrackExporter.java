@@ -42,6 +42,7 @@ import de.dennisguse.opentracks.data.models.Marker;
 import de.dennisguse.opentracks.data.models.Position;
 import de.dennisguse.opentracks.data.models.Track;
 import de.dennisguse.opentracks.data.models.TrackPoint;
+import de.dennisguse.opentracks.io.file.KMLConstants;
 import de.dennisguse.opentracks.ui.markers.MarkerUtils;
 import de.dennisguse.opentracks.util.StringUtils;
 
@@ -57,23 +58,49 @@ public class KMLTrackExporter implements TrackExporter {
 
     private static final String TAG = KMLTrackExporter.class.getSimpleName();
 
-    public static final String MARKER_STYLE = "waypoint";
+    /** @deprecated Use {@link KMLConstants#MARKER_STYLE} */
+    @Deprecated
+    public static final String MARKER_STYLE = KMLConstants.MARKER_STYLE;
     private static final String TRACK_STYLE = "track";
     private static final String SCHEMA_ID = "schema";
 
-    public static final String EXTENDED_DATA_TYPE_LOCALIZED = "type";
-    public static final String EXTENDED_DATA_ACTIVITY_TYPE = "activityType";
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_TYPE_LOCALIZED} */
+    @Deprecated
+    public static final String EXTENDED_DATA_TYPE_LOCALIZED = KMLConstants.EXTENDED_DATA_TYPE_LOCALIZED;
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_ACTIVITY_TYPE} */
+    @Deprecated
+    public static final String EXTENDED_DATA_ACTIVITY_TYPE = KMLConstants.EXTENDED_DATA_ACTIVITY_TYPE;
 
-    public static final String EXTENDED_DATA_TYPE_TRACKPOINT = "trackpoint_type";
-    public static final String EXTENDED_DATA_TYPE_SPEED = "speed";
-    public static final String EXTENDED_DATA_TYPE_DISTANCE = "distance";
-    public static final String EXTENDED_DATA_TYPE_CADENCE = "cadence";
-    public static final String EXTENDED_DATA_TYPE_HEARTRATE = "heartrate";
-    public static final String EXTENDED_DATA_TYPE_POWER = "power";
-    public static final String EXTENDED_DATA_TYPE_ALTITUDE_GAIN = "elevation_gain";
-    public static final String EXTENDED_DATA_TYPE_ALTITUDE_LOSS = "elevation_loss";
-    public static final String EXTENDED_DATA_TYPE_ACCURACY_HORIZONTAL = "accuracy_horizontal";
-    public static final String EXTENDED_DATA_TYPE_ACCURACY_VERTICAL = "accuracy_vertical";
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_TYPE_TRACKPOINT} */
+    @Deprecated
+    public static final String EXTENDED_DATA_TYPE_TRACKPOINT = KMLConstants.EXTENDED_DATA_TYPE_TRACKPOINT;
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_TYPE_SPEED} */
+    @Deprecated
+    public static final String EXTENDED_DATA_TYPE_SPEED = KMLConstants.EXTENDED_DATA_TYPE_SPEED;
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_TYPE_DISTANCE} */
+    @Deprecated
+    public static final String EXTENDED_DATA_TYPE_DISTANCE = KMLConstants.EXTENDED_DATA_TYPE_DISTANCE;
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_TYPE_CADENCE} */
+    @Deprecated
+    public static final String EXTENDED_DATA_TYPE_CADENCE = KMLConstants.EXTENDED_DATA_TYPE_CADENCE;
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_TYPE_HEARTRATE} */
+    @Deprecated
+    public static final String EXTENDED_DATA_TYPE_HEARTRATE = KMLConstants.EXTENDED_DATA_TYPE_HEARTRATE;
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_TYPE_POWER} */
+    @Deprecated
+    public static final String EXTENDED_DATA_TYPE_POWER = KMLConstants.EXTENDED_DATA_TYPE_POWER;
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_TYPE_ALTITUDE_GAIN} */
+    @Deprecated
+    public static final String EXTENDED_DATA_TYPE_ALTITUDE_GAIN = KMLConstants.EXTENDED_DATA_TYPE_ALTITUDE_GAIN;
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_TYPE_ALTITUDE_LOSS} */
+    @Deprecated
+    public static final String EXTENDED_DATA_TYPE_ALTITUDE_LOSS = KMLConstants.EXTENDED_DATA_TYPE_ALTITUDE_LOSS;
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_TYPE_ACCURACY_HORIZONTAL} */
+    @Deprecated
+    public static final String EXTENDED_DATA_TYPE_ACCURACY_HORIZONTAL = KMLConstants.EXTENDED_DATA_TYPE_ACCURACY_HORIZONTAL;
+    /** @deprecated Use {@link KMLConstants#EXTENDED_DATA_TYPE_ACCURACY_VERTICAL} */
+    @Deprecated
+    public static final String EXTENDED_DATA_TYPE_ACCURACY_VERTICAL = KMLConstants.EXTENDED_DATA_TYPE_ACCURACY_VERTICAL;
 
     private static final NumberFormat SENSOR_DATA_FORMAT = NumberFormat.getInstance(Locale.US);
 
@@ -251,10 +278,10 @@ public class KMLTrackExporter implements TrackExporter {
         writePlacemarkerStyle();
         printWriter.println("<Schema id=\"" + SCHEMA_ID + "\">");
 
-        writeSimpleArrayStyle(EXTENDED_DATA_TYPE_SPEED, context.getString(R.string.description_speed_ms));
-        writeSimpleArrayStyle(EXTENDED_DATA_TYPE_POWER, context.getString(R.string.description_sensor_power));
-        writeSimpleArrayStyle(EXTENDED_DATA_TYPE_CADENCE, context.getString(R.string.description_sensor_cadence));
-        writeSimpleArrayStyle(EXTENDED_DATA_TYPE_HEARTRATE, context.getString(R.string.description_sensor_heart_rate));
+        writeSimpleArrayStyle(KMLConstants.EXTENDED_DATA_TYPE_SPEED, context.getString(R.string.description_speed_ms));
+        writeSimpleArrayStyle(KMLConstants.EXTENDED_DATA_TYPE_POWER, context.getString(R.string.description_sensor_power));
+        writeSimpleArrayStyle(KMLConstants.EXTENDED_DATA_TYPE_CADENCE, context.getString(R.string.description_sensor_cadence));
+        writeSimpleArrayStyle(KMLConstants.EXTENDED_DATA_TYPE_HEARTRATE, context.getString(R.string.description_sensor_heart_rate));
 
         printWriter.println("</Schema>");
     }
@@ -336,31 +363,31 @@ public class KMLTrackExporter implements TrackExporter {
         writeTrackPointType(trackpointTypeList);
 
         if (speedList.stream().anyMatch(Objects::nonNull)) {
-            writeSimpleArraySensorData(speedList, EXTENDED_DATA_TYPE_SPEED);
+            writeSimpleArraySensorData(speedList, KMLConstants.EXTENDED_DATA_TYPE_SPEED);
         }
         if (distanceList.stream().anyMatch(Objects::nonNull)) {
-            writeSimpleArraySensorData(distanceList, EXTENDED_DATA_TYPE_DISTANCE);
+            writeSimpleArraySensorData(distanceList, KMLConstants.EXTENDED_DATA_TYPE_DISTANCE);
         }
         if (powerList.stream().anyMatch(Objects::nonNull)) {
-            writeSimpleArraySensorData(powerList, EXTENDED_DATA_TYPE_POWER);
+            writeSimpleArraySensorData(powerList, KMLConstants.EXTENDED_DATA_TYPE_POWER);
         }
         if (cadenceList.stream().anyMatch(Objects::nonNull)) {
-            writeSimpleArraySensorData(cadenceList, EXTENDED_DATA_TYPE_CADENCE);
+            writeSimpleArraySensorData(cadenceList, KMLConstants.EXTENDED_DATA_TYPE_CADENCE);
         }
         if (heartRateList.stream().anyMatch(Objects::nonNull)) {
-            writeSimpleArraySensorData(heartRateList, EXTENDED_DATA_TYPE_HEARTRATE);
+            writeSimpleArraySensorData(heartRateList, KMLConstants.EXTENDED_DATA_TYPE_HEARTRATE);
         }
         if (altitudeGainList.stream().anyMatch(Objects::nonNull)) {
-            writeSimpleArraySensorData(altitudeGainList, EXTENDED_DATA_TYPE_ALTITUDE_GAIN);
+            writeSimpleArraySensorData(altitudeGainList, KMLConstants.EXTENDED_DATA_TYPE_ALTITUDE_GAIN);
         }
         if (altitudeLossList.stream().anyMatch(Objects::nonNull)) {
-            writeSimpleArraySensorData(altitudeLossList, EXTENDED_DATA_TYPE_ALTITUDE_LOSS);
+            writeSimpleArraySensorData(altitudeLossList, KMLConstants.EXTENDED_DATA_TYPE_ALTITUDE_LOSS);
         }
         if (accuracyHorizontal.stream().anyMatch(Objects::nonNull)) {
-            writeSimpleArraySensorData(accuracyHorizontal, EXTENDED_DATA_TYPE_ACCURACY_HORIZONTAL);
+            writeSimpleArraySensorData(accuracyHorizontal, KMLConstants.EXTENDED_DATA_TYPE_ACCURACY_HORIZONTAL);
         }
         if (accuracyVertical.stream().anyMatch(Objects::nonNull)) {
-            writeSimpleArraySensorData(accuracyVertical, EXTENDED_DATA_TYPE_ACCURACY_VERTICAL);
+            writeSimpleArraySensorData(accuracyVertical, KMLConstants.EXTENDED_DATA_TYPE_ACCURACY_VERTICAL);
         }
         printWriter.println("</SchemaData>");
         printWriter.println("</ExtendedData>");
@@ -405,7 +432,7 @@ public class KMLTrackExporter implements TrackExporter {
     }
 
     private void writeTrackPointType(List<TrackPoint.Type> list) {
-        printWriter.println("<SimpleArrayData name=\"" + EXTENDED_DATA_TYPE_TRACKPOINT + "\">");
+        printWriter.println("<SimpleArrayData name=\"" + KMLConstants.EXTENDED_DATA_TYPE_TRACKPOINT + "\">");
         for (TrackPoint.Type value : list) {
             printWriter.println("<value>" + value.name() + "</value>");
         }
@@ -418,7 +445,7 @@ public class KMLTrackExporter implements TrackExporter {
             printWriter.println("<name>" + StringUtils.formatCData(name) + "</name>");
             printWriter.println("<description>" + StringUtils.formatCData(description) + "</description>");
             printWriter.println("<TimeStamp><when>" + getTime(zoneOffset, time) + "</when></TimeStamp>");
-            printWriter.println("<styleUrl>#" + KMLTrackExporter.MARKER_STYLE + "</styleUrl>");
+            printWriter.println("<styleUrl>#" + KMLConstants.MARKER_STYLE + "</styleUrl>");
             writeTypeLocalized(activityType);
             printWriter.println("<Point>");
             printWriter.println("<coordinates>" + getCoordinates(position, ",") + "</coordinates>");
@@ -438,7 +465,7 @@ public class KMLTrackExporter implements TrackExporter {
         printWriter.print("<tilt>90</tilt>");
         printWriter.println("</Camera>");
         printWriter.println("<TimeStamp><when>" + getTime(zoneOffset, marker.getTime()) + "</when></TimeStamp>");
-        printWriter.println("<styleUrl>#" + MARKER_STYLE + "</styleUrl>");
+        printWriter.println("<styleUrl>#" + KMLConstants.MARKER_STYLE + "</styleUrl>");
         writeTypeLocalized(marker.getCategory());
 
         if (exportPhotos) {
@@ -478,7 +505,7 @@ public class KMLTrackExporter implements TrackExporter {
             return;
         }
         printWriter.println("<ExtendedData>");
-        printWriter.println("<Data name=\"" + EXTENDED_DATA_TYPE_LOCALIZED + "\"><value>" + StringUtils.formatCData(localizedValue) + "</value></Data>");
+        printWriter.println("<Data name=\"" + KMLConstants.EXTENDED_DATA_TYPE_LOCALIZED + "\"><value>" + StringUtils.formatCData(localizedValue) + "</value></Data>");
         printWriter.println("</ExtendedData>");
     }
 
@@ -487,7 +514,7 @@ public class KMLTrackExporter implements TrackExporter {
             return;
         }
         printWriter.println("<ExtendedData>");
-        printWriter.println("<Data name=\"" + EXTENDED_DATA_ACTIVITY_TYPE + "\"><value>" + StringUtils.formatCData(value.getId()) + "</value></Data>");
+        printWriter.println("<Data name=\"" + KMLConstants.EXTENDED_DATA_ACTIVITY_TYPE + "\"><value>" + StringUtils.formatCData(value.getId()) + "</value></Data>");
         printWriter.println("</ExtendedData>");
     }
 
@@ -505,7 +532,7 @@ public class KMLTrackExporter implements TrackExporter {
      * Writes a placemarker style.
      */
     private void writePlacemarkerStyle() {
-        printWriter.println("<Style id=\"" + KMLTrackExporter.MARKER_STYLE + "\"><IconStyle>");
+        printWriter.println("<Style id=\"" + KMLConstants.MARKER_STYLE + "\"><IconStyle>");
         printWriter.println("<Icon />");
         printWriter.println("</IconStyle></Style>");
     }
