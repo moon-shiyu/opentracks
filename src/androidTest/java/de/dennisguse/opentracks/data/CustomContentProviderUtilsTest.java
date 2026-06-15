@@ -1220,4 +1220,50 @@ public class CustomContentProviderUtilsTest {
     public void testGetSensorStats_withSeveralRandomStartSegments() {
         testGetSensorStats_randomData(5000, true);
     }
+
+    /**
+     * Tests that {@link ContentProviderUtils#updateTrackStatistics(Track.Id, TrackStatistics)} persists
+     * every statistics column. Pins the shared {@code putTrackStatistics(...)} helper by reading the raw
+     * tracks row and comparing each column against the source {@link TrackStatistics}.
+     */
+    @Test
+    public void testUpdateTrackStatistics_writesAllStatFields() {
+        // given
+        Track.Id trackId = new Track.Id(System.currentTimeMillis());
+        contentProviderUtils.insertTrack(TestDataUtil.createTrack(trackId));
+
+        TrackStatistics statistics = new TrackStatistics();
+        statistics.setStartTime(Instant.ofEpochMilli(1000));
+        statistics.setStopTime(Instant.ofEpochMilli(2500));
+        statistics.setTotalDistance(Distance.of(750.0));
+        statistics.setTotalTime(Duration.ofMillis(1500));
+        statistics.setMovingTime(Duration.ofMillis(700));
+        statistics.setMaxSpeed(Speed.of(60.0));
+        statistics.setMinAltitude(1200.0);
+        statistics.setMaxAltitude(1250.0);
+        statistics.setTotalAltitudeGain(50.0f);
+        statistics.setTotalAltitudeLoss(25.0f);
+
+        // when
+        contentProviderUtils.updateTrackStatistics(trackId, statistics);
+
+        // then - every column written by putTrackStatistics(...) is persisted
+        ContentResolver contentResolver = context.getContentResolver();
+        try (Cursor cursor = contentResolver.query(ContentUris.appendId(TracksColumns.CONTENT_URI.buildUpon(), trackId.id()).build(), null, null, null, null)) {
+            assertTrue(cursor.moveToFirst());
+
+            assertEquals(statistics.getStartTime().toEpochMilli(), cursor.getLong(cursor.getColumnIndexOrThrow(TracksColumns.STARTTIME)));
+            assertEquals(statistics.getStopTime().toEpochMilli(), cursor.getLong(cursor.getColumnIndexOrThrow(TracksColumns.STOPTIME)));
+            assertEquals(statistics.getTotalDistance().toM(), cursor.getDouble(cursor.getColumnIndexOrThrow(TracksColumns.TOTALDISTANCE)), 0.001);
+            assertEquals(statistics.getTotalTime().toMillis(), cursor.getLong(cursor.getColumnIndexOrThrow(TracksColumns.TOTALTIME)));
+            assertEquals(statistics.getMovingTime().toMillis(), cursor.getLong(cursor.getColumnIndexOrThrow(TracksColumns.MOVINGTIME)));
+            assertEquals(statistics.getAverageSpeed().toMPS(), cursor.getDouble(cursor.getColumnIndexOrThrow(TracksColumns.AVGSPEED)), 0.001);
+            assertEquals(statistics.getAverageMovingSpeed().toMPS(), cursor.getDouble(cursor.getColumnIndexOrThrow(TracksColumns.AVGMOVINGSPEED)), 0.001);
+            assertEquals(statistics.getMaxSpeed().toMPS(), cursor.getDouble(cursor.getColumnIndexOrThrow(TracksColumns.MAXSPEED)), 0.001);
+            assertEquals(statistics.getMinAltitude(), cursor.getDouble(cursor.getColumnIndexOrThrow(TracksColumns.MIN_ALTITUDE)), 0.001);
+            assertEquals(statistics.getMaxAltitude(), cursor.getDouble(cursor.getColumnIndexOrThrow(TracksColumns.MAX_ALTITUDE)), 0.001);
+            assertEquals((double) statistics.getTotalAltitudeGain(), cursor.getDouble(cursor.getColumnIndexOrThrow(TracksColumns.ALTITUDE_GAIN)), 0.001);
+            assertEquals((double) statistics.getTotalAltitudeLoss(), cursor.getDouble(cursor.getColumnIndexOrThrow(TracksColumns.ALTITUDE_LOSS)), 0.001);
+        }
+    }
 }

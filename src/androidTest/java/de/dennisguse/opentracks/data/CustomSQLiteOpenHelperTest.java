@@ -263,6 +263,36 @@ public class CustomSQLiteOpenHelperTest {
         }
     }
 
+    @Test
+    public void foreignKey_cascadeDelete_atCurrentSchema() {
+        try (SQLiteDatabase db = new CustomSQLiteOpenHelper(context, DATABASE_NAME).getWritableDatabase()) {
+            // Necessary to enable cascade deletion from tracks to trackpoints and markers
+            db.setForeignKeyConstraintsEnabled(true);
+
+            db.execSQL("INSERT INTO tracks (_id) VALUES (1)");
+            db.execSQL("INSERT INTO trackpoints (trackid, type) VALUES (1, 0)");
+            db.execSQL("INSERT INTO markers (trackid) VALUES (1)");
+
+            try (Cursor cursor = db.query("trackpoints", null, "trackid=?", new String[]{"1"}, null, null, null)) {
+                assertEquals(1, cursor.getCount());
+            }
+            try (Cursor cursor = db.query("markers", null, "trackid=?", new String[]{"1"}, null, null, null)) {
+                assertEquals(1, cursor.getCount());
+            }
+
+            // when - delete the parent track row
+            assertEquals(1, db.delete("tracks", "_id=?", new String[]{"1"}));
+
+            // then - child rows are cascade-deleted
+            try (Cursor cursor = db.query("trackpoints", null, "trackid=?", new String[]{"1"}, null, null, null)) {
+                assertEquals(0, cursor.getCount());
+            }
+            try (Cursor cursor = db.query("markers", null, "trackid=?", new String[]{"1"}, null, null, null)) {
+                assertEquals(0, cursor.getCount());
+            }
+        }
+    }
+
     private void createVersion23() {
         // Manually create database schema with version 23 (base version)
         SQLiteDatabase dbBase = new SQLiteOpenHelper(context, DATABASE_NAME, null, 23) {

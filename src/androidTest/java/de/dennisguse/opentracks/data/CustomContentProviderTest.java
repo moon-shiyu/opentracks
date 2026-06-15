@@ -20,7 +20,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.content.ContentUris;
+import android.content.ContentValues;
 import android.content.Context;
+import android.database.Cursor;
 import android.net.Uri;
 
 import androidx.test.core.app.ApplicationProvider;
@@ -28,6 +30,9 @@ import androidx.test.core.app.ApplicationProvider;
 import org.junit.Before;
 import org.junit.Test;
 
+import de.dennisguse.opentracks.content.data.TestDataUtil;
+import de.dennisguse.opentracks.data.models.Marker;
+import de.dennisguse.opentracks.data.models.Track;
 import de.dennisguse.opentracks.data.tables.MarkerColumns;
 import de.dennisguse.opentracks.data.tables.TrackPointsColumns;
 import de.dennisguse.opentracks.data.tables.TracksColumns;
@@ -41,11 +46,14 @@ public class CustomContentProviderTest {
 
     private CustomContentProvider customContentProvider;
     private final Context context = ApplicationProvider.getApplicationContext();
+    private ContentProviderUtils contentProviderUtils;
 
     @Before
     public void setUp() {
         customContentProvider = new CustomContentProvider() {
         };
+        contentProviderUtils = new ContentProviderUtils(context);
+        contentProviderUtils.deleteAllTracks(context);
     }
 
     /**
@@ -69,5 +77,63 @@ public class CustomContentProviderTest {
 
         assertEquals(MarkerColumns.CONTENT_TYPE, customContentProvider.getType(MarkerColumns.CONTENT_URI));
         assertEquals(MarkerColumns.CONTENT_ITEMTYPE, customContentProvider.getType(ContentUris.appendId(MarkerColumns.CONTENT_URI.buildUpon(), 1).build()));
+    }
+
+    /**
+     * Tests querying trackpoints by track id through the installed provider.
+     * Covers the {@code trackid IN (...)} clause built for {@code TRACKPOINTS_BY_TRACKID} and the insert helper.
+     */
+    @Test
+    public void testInsertAndQueryTrackPointsByTrackId() {
+        Track.Id trackId = new Track.Id(System.currentTimeMillis());
+        TestDataUtil.createTrackAndInsert(contentProviderUtils, trackId, 2);
+
+        Uri uri = ContentUris.appendId(TrackPointsColumns.CONTENT_URI_BY_TRACKID.buildUpon(), trackId.id()).build();
+        try (Cursor cursor = context.getContentResolver().query(uri, null, null, null, null)) {
+            assertEquals(2, cursor.getCount());
+        }
+    }
+
+    /**
+     * Tests updating a single track through the {@code tracks/<id>} URI.
+     * Covers the per-id WHERE clause building used by {@code TRACKS_BY_ID}.
+     */
+    @Test
+    public void testUpdateTrackById() {
+        Track.Id trackId = new Track.Id(System.currentTimeMillis());
+        Track track = TestDataUtil.createTrack(trackId);
+        track.setName("before");
+        contentProviderUtils.insertTrack(track);
+
+        ContentValues values = new ContentValues();
+        values.put(TracksColumns.NAME, "after");
+        Uri uri = ContentUris.appendId(TracksColumns.CONTENT_URI.buildUpon(), trackId.id()).build();
+        int updated = context.getContentResolver().update(uri, values, null, null);
+
+        assertEquals(1, updated);
+        assertEquals("after", contentProviderUtils.getTrack(trackId).getName());
+    }
+
+    /**
+     * Tests that deleting a track row cascades to its trackpoints and markers (FK ON DELETE CASCADE).
+     */
+    @Test
+    public void testDeleteTrackCascades() {
+        Track.Id trackId = new Track.Id(System.currentTimeMillis());
+        TestDataUtil.createTrackAndInsert(contentProviderUtils, trackId, 2);
+        contentProviderUtils.insertMarker(new Marker(trackId, contentProviderUtils.getLastValidTrackPoint(trackId)));
+
+        int deleted = context.getContentResolver().delete(TracksColumns.CONTENT_URI, TracksColumns._ID + "=?", new String[]{String.valueOf(trackId.id())});
+        assertEquals(1, deleted);
+
+        Uri trackPointsUri = ContentUris.appendId(TrackPointsColumns.CONTENT_URI_BY_TRACKID.buildUpon(), trackId.id()).build();
+        try (Cursor cursor = context.getContentResolver().query(trackPointsUri, null, null, null, null)) {
+            assertEquals(0, cursor.getCount());
+        }
+
+        Uri markersUri = ContentUris.appendId(MarkerColumns.CONTENT_URI_BY_TRACKID.buildUpon(), trackId.id()).build();
+        try (Cursor cursor = context.getContentResolver().query(markersUri, null, null, null, null)) {
+            assertEquals(0, cursor.getCount());
+        }
     }
 }

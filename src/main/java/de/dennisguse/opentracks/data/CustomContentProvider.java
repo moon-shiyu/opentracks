@@ -246,7 +246,7 @@ public class CustomContentProvider extends ContentProvider {
             }
             case TRACKPOINTS_BY_TRACKID -> {
                 queryBuilder.setTables(TrackPointsColumns.TABLE_NAME);
-                queryBuilder.appendWhere(TrackPointsColumns.TRACKID + " IN (" + TextUtils.join(SQL_LIST_DELIMITER, ContentProviderUtils.parseTrackIdsFromUri(url)) + ")");
+                queryBuilder.appendWhere(inClauseFromUri(TrackPointsColumns.TRACKID, url));
             }
             case TRACKS -> {
                 if (projection != null && Arrays.asList(projection).contains(TracksColumns.MARKER_COUNT)) {
@@ -258,7 +258,7 @@ public class CustomContentProvider extends ContentProvider {
             }
             case TRACKS_BY_ID -> {
                 queryBuilder.setTables(TracksColumns.TABLE_NAME);
-                queryBuilder.appendWhere(TracksColumns._ID + " IN (" + TextUtils.join(SQL_LIST_DELIMITER, ContentProviderUtils.parseTrackIdsFromUri(url)) + ")");
+                queryBuilder.appendWhere(inClauseFromUri(TracksColumns._ID, url));
             }
             case TRACKS_SENSOR_STATS -> {
                 long trackId = ContentUris.parseId(url);
@@ -274,7 +274,7 @@ public class CustomContentProvider extends ContentProvider {
             }
             case MARKERS_BY_TRACKID -> {
                 queryBuilder.setTables(MarkerColumns.TABLE_NAME);
-                queryBuilder.appendWhere(MarkerColumns.TRACKID + " IN (" + TextUtils.join(SQL_LIST_DELIMITER, ContentProviderUtils.parseTrackIdsFromUri(url)) + ")");
+                queryBuilder.appendWhere(inClauseFromUri(MarkerColumns.TRACKID, url));
             }
             default -> throw new IllegalArgumentException("Unknown url " + url);
         }
@@ -295,10 +295,7 @@ public class CustomContentProvider extends ContentProvider {
             }
             case TRACKPOINTS_BY_ID -> {
                 table = TrackPointsColumns.TABLE_NAME;
-                whereClause = TrackPointsColumns._ID + "=" + ContentUris.parseId(url);
-                if (!TextUtils.isEmpty(where)) {
-                    whereClause += " AND (" + where + ")";
-                }
+                whereClause = appendId(TrackPointsColumns._ID, ContentUris.parseId(url), where);
             }
             case TRACKS -> {
                 table = TracksColumns.TABLE_NAME;
@@ -306,10 +303,7 @@ public class CustomContentProvider extends ContentProvider {
             }
             case TRACKS_BY_ID -> {
                 table = TracksColumns.TABLE_NAME;
-                whereClause = TracksColumns._ID + "=" + ContentUris.parseId(url);
-                if (!TextUtils.isEmpty(where)) {
-                    whereClause += " AND (" + where + ")";
-                }
+                whereClause = appendId(TracksColumns._ID, ContentUris.parseId(url), where);
             }
             case MARKERS -> {
                 table = MarkerColumns.TABLE_NAME;
@@ -317,10 +311,7 @@ public class CustomContentProvider extends ContentProvider {
             }
             case MARKERS_BY_ID -> {
                 table = MarkerColumns.TABLE_NAME;
-                whereClause = MarkerColumns._ID + "=" + ContentUris.parseId(url);
-                if (!TextUtils.isEmpty(where)) {
-                    whereClause += " AND (" + where + ")";
-                }
+                whereClause = appendId(MarkerColumns._ID, ContentUris.parseId(url), where);
             }
             default -> throw new IllegalArgumentException("Unknown url " + url);
         }
@@ -334,6 +325,18 @@ public class CustomContentProvider extends ContentProvider {
         }
         getContext().getContentResolver().notifyChange(url, null, false);
         return count;
+    }
+
+    private static String inClauseFromUri(String column, Uri url) {
+        return column + " IN (" + TextUtils.join(SQL_LIST_DELIMITER, ContentProviderUtils.parseTrackIdsFromUri(url)) + ")";
+    }
+
+    private static String appendId(String idColumn, long id, String where) {
+        String whereClause = idColumn + "=" + id;
+        if (!TextUtils.isEmpty(where)) {
+            whereClause += " AND (" + where + ")";
+        }
+        return whereClause;
     }
 
     @NonNull
@@ -368,27 +371,23 @@ public class CustomContentProvider extends ContentProvider {
         if (!hasTime) {
             throw new IllegalArgumentException("Latitude, longitude, and time values are required.");
         }
-        long rowId = db.insert(TrackPointsColumns.TABLE_NAME, TrackPointsColumns._ID, values);
-        if (rowId >= 0) {
-            return ContentUris.appendId(TrackPointsColumns.CONTENT_URI_BY_ID.buildUpon(), rowId).build();
-        }
-        throw new SQLiteException("Failed to insert a track point " + url);
+        return insertOrThrow(TrackPointsColumns.TABLE_NAME, TrackPointsColumns._ID, TrackPointsColumns.CONTENT_URI_BY_ID, values, "track point", url);
     }
 
     private Uri insertTrack(Uri url, ContentValues contentValues) {
-        long rowId = db.insert(TracksColumns.TABLE_NAME, TracksColumns._ID, contentValues);
-        if (rowId >= 0) {
-            return ContentUris.appendId(TracksColumns.CONTENT_URI.buildUpon(), rowId).build();
-        }
-        throw new SQLException("Failed to insert a track " + url);
+        return insertOrThrow(TracksColumns.TABLE_NAME, TracksColumns._ID, TracksColumns.CONTENT_URI, contentValues, "track", url);
     }
 
     private Uri insertMarker(Uri url, ContentValues contentValues) {
-        long rowId = db.insert(MarkerColumns.TABLE_NAME, MarkerColumns._ID, contentValues);
+        return insertOrThrow(MarkerColumns.TABLE_NAME, MarkerColumns._ID, MarkerColumns.CONTENT_URI, contentValues, "marker", url);
+    }
+
+    private Uri insertOrThrow(String table, String idColumn, Uri contentUriBase, ContentValues values, String entity, Uri url) {
+        long rowId = db.insert(table, idColumn, values);
         if (rowId >= 0) {
-            return ContentUris.appendId(MarkerColumns.CONTENT_URI.buildUpon(), rowId).build();
+            return ContentUris.appendId(contentUriBase.buildUpon(), rowId).build();
         }
-        throw new SQLException("Failed to insert a marker " + url);
+        throw new SQLException("Failed to insert a " + entity + " " + url);
     }
 
     @VisibleForTesting

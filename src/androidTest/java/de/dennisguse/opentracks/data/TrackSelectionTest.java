@@ -203,4 +203,37 @@ public class TrackSelectionTest extends TestCase {
         assertEquals(selection.selectionArgs()[2], Long.toString(instant.toEpochMilli()));
         assertEquals(selection.selectionArgs()[3], Long.toString(instant.toEpochMilli() + oneDay));
     }
+
+    @Test
+    public void testFilterBuildSelection_tracksId_and_categories_and_dateRange() {
+        // given
+        Instant instant = Instant.now();
+        long oneDay = 24 * 60 * 60 * 1000;
+
+        Track.Id trackId1 = new Track.Id(1);
+        Track.Id trackId2 = new Track.Id(2);
+        Track.Id trackId3 = new Track.Id(3);
+
+        TrackSelection filter = new TrackSelection()
+                .addTrackId(trackId1)
+                .addTrackId(trackId2)
+                .addTrackId(trackId3)
+                .addActivityType("running")
+                .addActivityType("road biking")
+                .addDateRange(instant, instant.plusMillis(oneDay));
+
+        // when
+        SelectionData selection = filter.buildSelection();
+
+        // Then
+        assertEquals(selection.selection(), "_id IN (?,?,?) AND category IN (?,?) AND starttime BETWEEN ? AND ?");
+        assertEquals(selection.selectionArgs().length, 7);
+        assertEquals(selection.selectionArgs()[0], "1");
+        assertEquals(selection.selectionArgs()[1], "2");
+        assertEquals(selection.selectionArgs()[2], "3");
+        assertEquals(selection.selectionArgs()[3], "running");
+        assertEquals(selection.selectionArgs()[4], "road biking");
+        assertEquals(selection.selectionArgs()[5], Long.toString(instant.toEpochMilli()));
+        assertEquals(selection.selectionArgs()[6], Long.toString(instant.toEpochMilli() + oneDay));
+    }
 }

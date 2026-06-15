@@ -49,6 +49,13 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
         this.context = context;
     }
 
+    private static void inTransaction(SQLiteDatabase db, Runnable body) {
+        db.beginTransaction();
+        body.run();
+        db.setTransactionSuccessful();
+        db.endTransaction();
+    }
+
     @Override
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(TrackPointsColumns.CREATE_TABLE);
@@ -117,7 +124,7 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
      * SQLite3 does not support drop columns; therefore new tables are created and data is copied.
      */
     private void upgradeFrom23to24(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
         db.execSQL("ALTER TABLE tracks RENAME TO tracks_old");
         db.execSQL("CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, icon TEXT)");
         db.execSQL("INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, icon FROM tracks_old");
@@ -128,13 +135,12 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
         db.execSQL("INSERT INTO waypoints SELECT _id, name, description, category, icon, trackid, length, duration, longitude, latitude, time, elevation, accuracy, bearing, photoUrl FROM waypoints_old");
         db.execSQL("DROP TABLE waypoints_old");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom24to23(SQLiteDatabase db) {
         //Not needed as the deleted columns did not contain any data
-        db.beginTransaction();
+        inTransaction(db, () -> {
         db.execSQL("ALTER TABLE tracks RENAME TO tracks_old");
         db.execSQL("CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, mingrade FLOAT, maxgrade FLOAT, icon TEXT)");
         db.execSQL("INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, 0, 0, icon FROM tracks_old");
@@ -145,38 +151,35 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
         db.execSQL("INSERT INTO waypoints SELECT _id, name, description, category, icon, trackid, 0, length, duration, 0, 0, 0, longitude, latitude, time, elevation, accuracy, 0, bearing, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, photoUrl FROM waypoints_old");
         db.execSQL("DROP TABLE waypoints_old");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     /**
      * Add indeces for foreign key trackId
      */
     private void upgradeFrom24to25(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
         db.execSQL("CREATE INDEX waypoints_trackid_index ON waypoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom25to24(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("DROP INDEX trackpoints_trackid_index");
         db.execSQL("DROP INDEX waypoints_trackid_index");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     /**
      * Add track UUID to prevent re-import of existing tracks
      */
     private void upgradeFrom25to26(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE tracks ADD COLUMN uuid BLOB");
         try (Cursor cursor = db.query("tracks", new String[]{"_id"}, null, null, null, null, null)) {
@@ -193,12 +196,11 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE UNIQUE INDEX tracks_uuid_index ON tracks(uuid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom26to25(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("DROP INDEX tracks_uuid_index");
 
@@ -207,24 +209,22 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
         db.execSQL("INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, 0, 0, icon FROM tracks_old");
         db.execSQL("DROP TABLE tracks_old");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     /**
      * Add elevation gain
      */
     private void upgradeFrom26to27(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE trackpoints ADD COLUMN elevation_gain FLOAT");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom27to26(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
         db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT)");
@@ -233,15 +233,14 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     /**
      * Add foreign key constraints on trackId
      */
     private void upgradeFrom27to28(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         // TrackPoints
         db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
@@ -260,12 +259,11 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX markers_trackid_index ON markers(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom28to27(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         // TrackPoints
         db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
@@ -283,25 +281,23 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX waypoints_trackid_index ON waypoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     /**
      * Add elevation loss.
      */
     private void upgradeFrom28to29(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE tracks ADD COLUMN elevationloss FLOAT");
         db.execSQL("ALTER TABLE trackpoints ADD COLUMN elevation_loss FLOAT");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom29to28(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         // Tracks
         db.execSQL("DROP INDEX tracks_uuid_index");
@@ -323,15 +319,14 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     /**
      * Move TrackPoint type (segment start vs. segment end) into separate column.
      */
     private void upgradeFrom29to30(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         // TrackPoints
         db.execSQL("ALTER TABLE trackpoints ADD COLUMN type TEXT CHECK(type IN (-2, -1, 0, 1))");
@@ -361,12 +356,11 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
                         "ORDER BY t1._id ASC " +
                         "LIMIT 1)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom30to29(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         // TrackPoints
         // Info: this does not restore deleted trackpoints
@@ -381,25 +375,23 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     /**
      * Add distance column to TrackPoint.
      */
     private void upgradeFrom30to31(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         // TrackPoints
         db.execSQL("ALTER TABLE trackpoints ADD COLUMN sensor_distance FLOAT");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom31to30(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         // TrackPoints; identical to upgradeFrom27to28()
         db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
@@ -409,15 +401,14 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     /**
      * Add TrackPoint type SENSORPOINT (2).
      */
     private void upgradeFrom31to32(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
         db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
@@ -426,12 +417,11 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom32to31(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
         db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1)), sensor_distance FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
@@ -440,15 +430,14 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     /**
      * Add timezone to Track.
      */
     private void upgradeFrom32to33(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE tracks ADD COLUMN starttime_offset INTEGER");
 
@@ -469,12 +458,11 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
             }
         }
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom33to32(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("DROP INDEX tracks_uuid_index");
 
@@ -486,8 +474,7 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE UNIQUE INDEX tracks_uuid_index ON tracks(uuid)");
 
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
 
@@ -495,16 +482,15 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
      * Add accuracy_vertical
      */
     private void upgradeFrom33to34(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE trackpoints ADD COLUMN accuracy_vertical FLOAT");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom34to33(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
         db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
@@ -513,12 +499,11 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void upgradeFrom34to35(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
         db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2, 3)), sensor_distance FLOAT, accuracy_vertical FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
@@ -527,12 +512,11 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom35to34(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
         db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, accuracy_vertical FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
@@ -541,12 +525,11 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void upgradeFrom35to36(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("UPDATE trackpoints SET type = 0 WHERE type = 2"); //SENSORPOINTs are now TRACKPOINTs
         db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
@@ -556,12 +539,11 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom36to35(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
         db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, accuracy_vertical FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
@@ -570,8 +552,7 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void upgradeFrom36to37(SQLiteDatabase db) {
@@ -599,7 +580,7 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
                 Map.entry("UNKNOWN", "unknown")
                 );
 
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE tracks ADD COLUMN activity_type TEXT");
 
@@ -626,12 +607,11 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
             }
         }
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom37to36(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("DROP INDEX tracks_uuid_index");
 
@@ -642,12 +622,11 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE UNIQUE INDEX tracks_uuid_index ON tracks(uuid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void upgradeFrom37to38(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE markers RENAME TO markers_old");
         db.execSQL("CREATE TABLE markers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, icon TEXT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, bearing FLOAT, photoUrl TEXT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
@@ -656,18 +635,16 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE INDEX markers_trackid_index ON markers(trackid)");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
     private void downgradeFrom38to37(SQLiteDatabase db) {
-        db.beginTransaction();
+        inTransaction(db, () -> {
 
         db.execSQL("ALTER TABLE markers ADD COLUMN length FLOAT");
         db.execSQL("ALTER TABLE markers ADD COLUMN duration INTEGER");
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        });
     }
 
 }

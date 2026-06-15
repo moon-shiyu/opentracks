@@ -20,6 +20,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.database.ContentObserver;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
@@ -118,29 +119,9 @@ public class TrackDataHub {
 
         //register listeners
         ContentResolver contentResolver = context.getContentResolver();
-        tracksTableObserver = new ContentObserver(handler) {
-            @Override
-            public void onChange(boolean selfChange) {
-                notifyTracksTableUpdate(listeners);
-            }
-        };
-        contentResolver.registerContentObserver(TracksColumns.CONTENT_URI, false, tracksTableObserver);
-
-        markersTableObserver = new ContentObserver(handler) {
-            @Override
-            public void onChange(boolean selfChange) {
-                notifyMarkersTableUpdate(listeners);
-            }
-        };
-        contentResolver.registerContentObserver(MarkerColumns.CONTENT_URI, false, markersTableObserver);
-
-        trackPointsTableObserver = new ContentObserver(handler) {
-            @Override
-            public void onChange(boolean selfChange) {
-                notifyTrackPointsTableUpdate(true, listeners);
-            }
-        };
-        contentResolver.registerContentObserver(TrackPointsColumns.CONTENT_URI_BY_ID, false, trackPointsTableObserver);
+        tracksTableObserver = registerObserver(contentResolver, handler, TracksColumns.CONTENT_URI, () -> notifyTracksTableUpdate(listeners));
+        markersTableObserver = registerObserver(contentResolver, handler, MarkerColumns.CONTENT_URI, () -> notifyMarkersTableUpdate(listeners));
+        trackPointsTableObserver = registerObserver(contentResolver, handler, TrackPointsColumns.CONTENT_URI_BY_ID, () -> notifyTrackPointsTableUpdate(true, listeners));
     }
 
     public void stop() {
@@ -161,6 +142,17 @@ public class TrackDataHub {
         }
         handler = null;
         trackStatisticsUpdater = null;
+    }
+
+    private static ContentObserver registerObserver(ContentResolver contentResolver, Handler handler, Uri uri, Runnable onChangeAction) {
+        ContentObserver observer = new ContentObserver(handler) {
+            @Override
+            public void onChange(boolean selfChange) {
+                onChangeAction.run();
+            }
+        };
+        contentResolver.registerContentObserver(uri, false, observer);
+        return observer;
     }
 
     public void loadTrack(final @NonNull Track.Id trackId) {
