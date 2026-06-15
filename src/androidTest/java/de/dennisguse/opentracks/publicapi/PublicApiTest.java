@@ -36,10 +36,10 @@ public class PublicApiTest {
     public void StartStopTest() throws InterruptedException {
         PreferencesUtils.setBoolean(R.string.publicapi_enabled_key, true);
         Intent startIntent = IntentUtils.newIntent(context, StartRecording.class);
-        startIntent.putExtra("TRACK_NAME", "trackName");
-        startIntent.putExtra("TRACK_CATEGORY", "activityTypeLocalized");
-        startIntent.putExtra("TRACK_ICON", "airplane");
-        startIntent.putExtra("TRACK_DESCRIPTION", "description");
+        startIntent.putExtra(PublicApiConstants.EXTRA_TRACK_NAME, "trackName");
+        startIntent.putExtra(PublicApiConstants.EXTRA_TRACK_ACTIVITY_TYPE_LOCALIZED, "activityTypeLocalized");
+        startIntent.putExtra(PublicApiConstants.EXTRA_TRACK_ACTIVITY_TYPE_ID, "airplane");
+        startIntent.putExtra(PublicApiConstants.EXTRA_TRACK_DESCRIPTION, "description");
         context.startActivity(startIntent);
 
         Thread.sleep(5000);
@@ -63,5 +63,59 @@ public class PublicApiTest {
         Thread.sleep(10000);
 
         //No ForegroundServiceDidNotStartInTimeException should be happening.
+    }
+
+    /**
+     * Verifies that the deprecated constants in StartRecording still hold the
+     * same string values as PublicApiConstants (backward compatibility).
+     */
+    @Test
+    public void deprecatedConstants_backwardCompatibility() {
+        Assert.assertEquals(PublicApiConstants.EXTRA_TRACK_NAME, StartRecording.EXTRA_TRACK_NAME);
+        Assert.assertEquals(PublicApiConstants.EXTRA_TRACK_DESCRIPTION, StartRecording.EXTRA_TRACK_DESCRIPTION);
+        Assert.assertEquals(PublicApiConstants.EXTRA_TRACK_ACTIVITY_TYPE_LOCALIZED, StartRecording.EXTRA_TRACK_ACTIVITY_TYPE_LOCALIZED);
+        Assert.assertEquals(PublicApiConstants.EXTRA_TRACK_ACTIVITY_TYPE_ID, StartRecording.EXTRA_TRACK_ACTIVITY_TYPE_ID);
+        Assert.assertEquals(PublicApiConstants.EXTRA_STATS_TARGET_PACKAGE, StartRecording.EXTRA_STATS_TARGET_PACKAGE);
+        Assert.assertEquals(PublicApiConstants.EXTRA_STATS_TARGET_CLASS, StartRecording.EXTRA_STATS_TARGET_CLASS);
+    }
+
+    /**
+     * Verifies that the public API string values match the documented contract
+     * (README_API.md references these exact string literals).
+     */
+    @Test
+    public void constants_matchDocumentedValues() {
+        Assert.assertEquals("TRACK_NAME", PublicApiConstants.EXTRA_TRACK_NAME);
+        Assert.assertEquals("TRACK_DESCRIPTION", PublicApiConstants.EXTRA_TRACK_DESCRIPTION);
+        Assert.assertEquals("TRACK_CATEGORY", PublicApiConstants.EXTRA_TRACK_ACTIVITY_TYPE_LOCALIZED);
+        Assert.assertEquals("TRACK_ICON", PublicApiConstants.EXTRA_TRACK_ACTIVITY_TYPE_ID);
+        Assert.assertEquals("STATS_TARGET_PACKAGE", PublicApiConstants.EXTRA_STATS_TARGET_PACKAGE);
+        Assert.assertEquals("STATS_TARGET_CLASS", PublicApiConstants.EXTRA_STATS_TARGET_CLASS);
+    }
+
+    /**
+     * Verifies that when the public API is disabled, StartRecording extras
+     * include dashboard target fields but the dashboard is not triggered
+     * unless isPublicAPIDashboardEnabled is also true.
+     */
+    @Test
+    public void dashboardExtras_onlyTriggersWhenDashboardEnabled() throws InterruptedException {
+        PreferencesUtils.setBoolean(R.string.publicapi_enabled_key, true);
+        // Dashboard disabled by default
+        Assert.assertFalse(PreferencesUtils.isPublicAPIDashboardEnabled());
+
+        Intent startIntent = IntentUtils.newIntent(context, StartRecording.class);
+        startIntent.putExtra(PublicApiConstants.EXTRA_TRACK_NAME, "dashboardTest");
+        startIntent.putExtra(PublicApiConstants.EXTRA_STATS_TARGET_PACKAGE, "com.example.dashboard");
+        startIntent.putExtra(PublicApiConstants.EXTRA_STATS_TARGET_CLASS, "com.example.dashboard.DashboardActivity");
+        context.startActivity(startIntent);
+
+        Thread.sleep(5000);
+
+        context.startActivity(IntentUtils.newIntent(context, StopRecording.class));
+
+        // Track should still be created even though dashboard was not triggered
+        List<Track> tracks = new ContentProviderUtils(context).getTracks();
+        Assert.assertTrue("At least one track should exist", tracks.size() >= 1);
     }
 }

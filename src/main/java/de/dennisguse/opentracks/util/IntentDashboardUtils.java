@@ -9,6 +9,7 @@ import android.util.Log;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import java.util.ArrayList;
 
@@ -28,25 +29,25 @@ public class IntentDashboardUtils {
 
     private static final String TAG = IntentDashboardUtils.class.getSimpleName();
 
-    private static final String ACTION_DASHBOARD = "Intent.OpenTracks-Dashboard";
+    static final String ACTION_DASHBOARD = "Intent.OpenTracks-Dashboard";
 
     private static final String ACTION_DASHBOARD_PAYLOAD = ACTION_DASHBOARD + ".Payload";
 
     /**
      * Assume "v1" if not present.
      */
-    private static final String EXTRAS_PROTOCOL_VERSION = "PROTOCOL_VERSION";
+    static final String EXTRAS_PROTOCOL_VERSION = "PROTOCOL_VERSION";
 
     /**
      * version 1: the initial version.
      * version 2: replaced pause/resume trackpoints for track segmentation (lat=100 / lat=200) by TrackPoint.Type.
      */
-    private static final int CURRENT_VERSION = 2;
+    static final int CURRENT_VERSION = 2;
 
-    private static final String EXTRAS_OPENTRACKS_IS_RECORDING_THIS_TRACK = "EXTRAS_OPENTRACKS_IS_RECORDING_THIS_TRACK";
-    private static final String EXTRAS_SHOULD_KEEP_SCREEN_ON = "EXTRAS_SHOULD_KEEP_SCREEN_ON";
-    private static final String EXTRAS_SHOW_WHEN_LOCKED = "EXTRAS_SHOULD_KEEP_SCREEN_ON";
-    private static final String EXTRAS_SHOW_FULLSCREEN = "EXTRAS_SHOULD_FULLSCREEN";
+    static final String EXTRAS_OPENTRACKS_IS_RECORDING_THIS_TRACK = "EXTRAS_OPENTRACKS_IS_RECORDING_THIS_TRACK";
+    static final String EXTRAS_SHOULD_KEEP_SCREEN_ON = "EXTRAS_SHOULD_KEEP_SCREEN_ON";
+    static final String EXTRAS_SHOW_WHEN_LOCKED = "EXTRAS_SHOW_WHEN_LOCKED";
+    static final String EXTRAS_SHOW_FULLSCREEN = "EXTRAS_SHOULD_FULLSCREEN";
 
     private static final int TRACK_URI_INDEX = 0;
     private static final int TRACKPOINTS_URI_INDEX = 1;
@@ -83,6 +84,37 @@ public class IntentDashboardUtils {
             return;
         }
 
+        Intent intent = buildDashboardIntent(context, isRecording, targetPackage, targetClass, trackIds);
+
+        try {
+            context.startActivity(intent);
+        } catch (ActivityNotFoundException e) {
+            Log.e(TAG, "Dashboard not installed; cannot start it.");
+            Toast.makeText(context, R.string.show_on_dashboard_not_installed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * Builds the dashboard Intent without starting it.
+     * <p>
+     * The Intent includes:
+     * <ul>
+     *     <li>Content URIs for tracks, track points, and markers (via ClipData)</li>
+     *     <li>Temporary read permission ({@link Intent#FLAG_GRANT_READ_URI_PERMISSION})</li>
+     *     <li>Protocol version and recording state extras</li>
+     * </ul>
+     *
+     * @param context       the context for reading preferences
+     * @param isRecording   whether a track is currently being recorded
+     * @param targetPackage optional target package for explicit intent
+     * @param targetClass   optional target class for explicit intent
+     * @param trackIds      the track IDs to include
+     * @return the constructed dashboard Intent
+     */
+    @VisibleForTesting
+    static Intent buildDashboardIntent(Context context, boolean isRecording,
+            @Nullable String targetPackage, @Nullable String targetClass,
+            Track.Id... trackIds) {
         String trackIdList = ContentProviderUtils.formatIdListForUri(trackIds);
 
         ArrayList<Uri> uris = new ArrayList<>();
@@ -115,11 +147,6 @@ public class IntentDashboardUtils {
             Log.i(TAG, "Starting dashboard activity with generic intent (package=" + targetPackage + ", class=" + targetClass + ")");
         }
 
-        try {
-            context.startActivity(intent);
-        } catch (ActivityNotFoundException e) {
-            Log.e(TAG, "Dashboard not installed; cannot start it.");
-            Toast.makeText(context, R.string.show_on_dashboard_not_installed, Toast.LENGTH_SHORT).show();
-        }
+        return intent;
     }
 }
