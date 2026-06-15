@@ -19,22 +19,20 @@ package de.dennisguse.opentracks.services;
 import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.ServiceInfo;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.PowerManager.WakeLock;
 import android.util.Log;
 import android.util.Pair;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
-import androidx.core.app.ServiceCompat;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Duration;
+import java.util.List;
 
 import de.dennisguse.opentracks.data.ContentProviderUtils;
 import de.dennisguse.opentracks.data.models.Distance;
@@ -43,10 +41,10 @@ import de.dennisguse.opentracks.data.models.Track;
 import de.dennisguse.opentracks.data.models.TrackPoint;
 import de.dennisguse.opentracks.sensors.GpsStatusValue;
 import de.dennisguse.opentracks.sensors.sensorData.SensorDataSet;
+import de.dennisguse.opentracks.stats.TrackStatistics;
 import de.dennisguse.opentracks.services.announcement.VoiceAnnouncementManager;
 import de.dennisguse.opentracks.services.handlers.TrackPointCreator;
 import de.dennisguse.opentracks.settings.PreferencesUtils;
-import de.dennisguse.opentracks.util.SystemUtils;
 
 public class TrackRecordingService extends Service implements TrackPointCreator.Callback, SharedPreferences.OnSharedPreferenceChangeListener, TrackRecordingManager.IdleObserver {
 
@@ -91,7 +89,6 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
     private MutableLiveData<RecordingData> recordingDataObservable;
 
     // The following variables are set when recording:
-    private WakeLock wakeLock; //TODO Move to SensorManager
     private Handler handler;
 
     private TrackPointCreator trackPointCreator;
@@ -99,6 +96,8 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
 
     private VoiceAnnouncementManager voiceAnnouncementManager;
     private TrackRecordingServiceNotificationManager notificationManager;
+    private SensorLifecycleManager sensorLifecycleManager;
+    private List<SharedPreferences.OnSharedPreferenceChangeListener> preferenceListeners;
 
     @Override
     public void onCreate() {
@@ -117,6 +116,11 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
 
         voiceAnnouncementManager = new VoiceAnnouncementManager(this);
         notificationManager = new TrackRecordingServiceNotificationManager(this);
+        sensorLifecycleManager = new SensorLifecycleManager(this, trackPointCreator, notificationManager);
+
+        preferenceListeners = List.of(
+                voiceAnnouncementManager, trackRecordingManager,
+                trackPointCreator, notificationManager);
 
         PreferencesUtils.registerOnSharedPreferenceChangeListener(this);
     }
@@ -133,17 +137,16 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
 
         PreferencesUtils.unregisterOnSharedPreferenceChangeListener(this);
 
+        // Reverse order from onCreate
+        preferenceListeners = null;
+        sensorLifecycleManager = null;
+        notificationManager = null;
+        voiceAnnouncementManager = null;
+        trackRecordingManager = null;
         trackPointCreator = null;
 
         handler.removeCallbacksAndMessages(null); //Some tests do not finish the recording completely
         handler = null;
-
-        trackRecordingManager = null;
-
-        // Reverse order from onCreate
-        notificationManager = null;
-
-        voiceAnnouncementManager = null;
 
         recordingStatusObservable = null;
         gpsStatusObservable = null;
@@ -191,11 +194,16 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
     }
 
     private void startRecording() {
-        // Update instance variables
-        handler.postDelayed(updateRecordingData, RECORDING_DATA_UPDATE_INTERVAL.toMillis());
-
+        startPeriodicUiDataUpdate();
         startSensors();
+        startVoiceAnnouncements();
+    }
 
+    private void startPeriodicUiDataUpdate() {
+        handler.postDelayed(updateRecordingData, RECORDING_DATA_UPDATE_INTERVAL.toMillis());
+    }
+
+    private void startVoiceAnnouncements() {
         voiceAnnouncementManager.start(trackRecordingManager.getTrackStatistics());
     }
 
@@ -207,16 +215,8 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
         startSensors();
     }
 
-    private synchronized void startSensors() {
-        if (isSensorStarted()) {
-            Log.i(TAG, "sensors already started; skipping");
-            return;
-        }
-        Log.i(TAG, "startSensors");
-        wakeLock = SystemUtils.acquireWakeLock(this, wakeLock);
-        trackPointCreator.start(this, handler);
-
-        ServiceCompat.startForeground(this, TrackRecordingServiceNotificationManager.NOTIFICATION_ID, notificationManager.setGPSonlyStarted(this), ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION + ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
+    private void startSensors() {
+        sensorLifecycleManager.start(this, handler);
     }
 
     public void endCurrentTrack() {
@@ -225,23 +225,23 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
             return;
         }
 
-        // Set recording status
         updateRecordingStatus(STATUS_DEFAULT);
-
-        trackRecordingManager.endCurrentTrack();
-
-        stopUpdateRecordingData();
-
-        voiceAnnouncementManager.stop();
-
+        stopRecordingPipeline();
         stopSensors();
     }
 
+    private void stopRecordingPipeline() {
+        trackRecordingManager.endCurrentTrack();
+        stopUpdateRecordingData();
+        voiceAnnouncementManager.stop();
+    }
+
     void stopSensors() {
-        trackPointCreator.stop();
-        stopForeground(true);
-        notificationManager.cancelNotification();
-        wakeLock = SystemUtils.releaseWakeLock(wakeLock);
+        if (isRecording()) {
+            Log.w(TAG, "Ignore stopSensors. Currently recording.");
+            return;
+        }
+        sensorLifecycleManager.stop();
         gpsStatusObservable.postValue(STATUS_GPS_DEFAULT);
     }
 
@@ -266,9 +266,17 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
             return false;
         }
 
-        boolean stored = trackRecordingManager.onNewTrackPoint(trackPoint);
-        notificationManager.updateTrackPoint(this, trackRecordingManager.getTrackStatistics(), trackPoint, thresholdHorizontalAccuracy);
+        boolean stored = storeTrackPoint(trackPoint);
+        updateNotificationWithTrackPoint(trackRecordingManager.getTrackStatistics(), trackPoint, thresholdHorizontalAccuracy);
         return stored;
+    }
+
+    private boolean storeTrackPoint(TrackPoint trackPoint) {
+        return trackRecordingManager.onNewTrackPoint(trackPoint);
+    }
+
+    private void updateNotificationWithTrackPoint(TrackStatistics trackStatistics, TrackPoint trackPoint, Distance thresholdHorizontalAccuracy) {
+        notificationManager.updateTrackPoint(this, trackStatistics, trackPoint, thresholdHorizontalAccuracy);
     }
 
     @Override
@@ -284,7 +292,15 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
             Log.e(TAG, e.getMessage() + " " + writer);
             return;
         }
+        updateNotificationWithGpsStatus(gpsStatusValue);
+        publishGpsStatus(gpsStatusValue);
+    }
+
+    private void updateNotificationWithGpsStatus(GpsStatusValue gpsStatusValue) {
         notificationManager.updateContent(getString(gpsStatusValue.message));
+    }
+
+    private void publishGpsStatus(GpsStatusValue gpsStatusValue) {
         gpsStatusObservable.postValue(gpsStatusValue);
     }
 
@@ -347,14 +363,13 @@ public class TrackRecordingService extends Service implements TrackPointCreator.
     }
 
     private boolean isSensorStarted() {
-        return wakeLock != null;
+        return sensorLifecycleManager.isStarted();
     }
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, @Nullable String key) {
-        voiceAnnouncementManager.onSharedPreferenceChanged(sharedPreferences, key);
-        trackRecordingManager.onSharedPreferenceChanged(sharedPreferences, key);
-        trackPointCreator.onSharedPreferenceChanged(sharedPreferences, key);
-        notificationManager.onSharedPreferenceChanged(sharedPreferences, key);
+        for (SharedPreferences.OnSharedPreferenceChangeListener listener : preferenceListeners) {
+            listener.onSharedPreferenceChanged(sharedPreferences, key);
+        }
     }
 }
