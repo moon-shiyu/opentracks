@@ -1220,4 +1220,50 @@ public class CustomContentProviderUtilsTest {
     public void testGetSensorStats_withSeveralRandomStartSegments() {
         testGetSensorStats_randomData(5000, true);
     }
+
+    @Test
+    public void testUpdateTrackStatistics() {
+        // given
+        Track track = TestDataUtil.createTrack(new Track.Id(0));
+        Track.Id trackId = contentProviderUtils.insertTrack(track);
+        track.setId(trackId);
+
+        // when - update statistics
+        TrackStatistics stats = track.getTrackStatistics();
+        stats.setTotalDistance(Distance.of(5000f));
+        stats.setTotalTime(Duration.ofSeconds(3600));
+        stats.setMovingTime(Duration.ofSeconds(3000));
+        contentProviderUtils.updateTrackStatistics(trackId, stats);
+
+        // then
+        Track loaded = contentProviderUtils.getTrack(trackId);
+        assertNotNull(loaded);
+        assertEquals(5000f, loaded.getTrackStatistics().getTotalDistance().toM(), 0.01f);
+        assertEquals(3600000, loaded.getTrackStatistics().getTotalTime().toMillis());
+        assertEquals(3000000, loaded.getTrackStatistics().getMovingTime().toMillis());
+    }
+
+    @Test
+    public void testDeleteTracks_batch() {
+        // given - insert 3 tracks with trackpoints
+        Track track1 = TestDataUtil.createTrack(new Track.Id(1));
+        Track.Id id1 = contentProviderUtils.insertTrack(track1);
+        TestDataUtil.insertTrackWithLocations(contentProviderUtils, track1, TestDataUtil.createTrackPoints(5));
+
+        Track track2 = TestDataUtil.createTrack(new Track.Id(2));
+        Track.Id id2 = contentProviderUtils.insertTrack(track2);
+        TestDataUtil.insertTrackWithLocations(contentProviderUtils, track2, TestDataUtil.createTrackPoints(5));
+
+        Track track3 = TestDataUtil.createTrack(new Track.Id(3));
+        Track.Id id3 = contentProviderUtils.insertTrack(track3);
+        TestDataUtil.insertTrackWithLocations(contentProviderUtils, track3, TestDataUtil.createTrackPoints(5));
+
+        // when - delete first two tracks
+        contentProviderUtils.deleteTracks(context, List.of(id1, id2));
+
+        // then - only track3 should remain
+        assertNull(contentProviderUtils.getTrack(id1));
+        assertNull(contentProviderUtils.getTrack(id2));
+        assertNotNull(contentProviderUtils.getTrack(id3));
+    }
 }

@@ -118,28 +118,13 @@ public class TrackDataHub {
 
         //register listeners
         ContentResolver contentResolver = context.getContentResolver();
-        tracksTableObserver = new ContentObserver(handler) {
-            @Override
-            public void onChange(boolean selfChange) {
-                notifyTracksTableUpdate(listeners);
-            }
-        };
+        tracksTableObserver = createObserver(() -> notifyTracksTableUpdate(listeners));
         contentResolver.registerContentObserver(TracksColumns.CONTENT_URI, false, tracksTableObserver);
 
-        markersTableObserver = new ContentObserver(handler) {
-            @Override
-            public void onChange(boolean selfChange) {
-                notifyMarkersTableUpdate(listeners);
-            }
-        };
+        markersTableObserver = createObserver(() -> notifyMarkersTableUpdate(listeners));
         contentResolver.registerContentObserver(MarkerColumns.CONTENT_URI, false, markersTableObserver);
 
-        trackPointsTableObserver = new ContentObserver(handler) {
-            @Override
-            public void onChange(boolean selfChange) {
-                notifyTrackPointsTableUpdate(true, listeners);
-            }
-        };
+        trackPointsTableObserver = createObserver(() -> notifyTrackPointsTableUpdate(true, listeners));
         contentResolver.registerContentObserver(TrackPointsColumns.CONTENT_URI_BY_ID, false, trackPointsTableObserver);
     }
 
@@ -301,13 +286,8 @@ public class TrackDataHub {
             return;
         }
 
-        if (updateSamplingState && numLoadedPoints >= targetNumPoints) {
-            // Reload and resample the track at a lower frequency.
-            Log.i(TAG, "Resampling track after " + numLoadedPoints + " points.");
-            resetSamplingState();
-            for (Listener listener : listeners) {
-                listener.clearTrackPoints();
-            }
+        if (updateSamplingState) {
+            handleResampling(listeners);
         }
 
         int localNumLoadedTrackPoints = updateSamplingState ? numLoadedPoints : 0;
@@ -389,7 +369,33 @@ public class TrackDataHub {
         listeners.stream().forEach(Listener::onNewTrackPointsDone);
     }
 
+    /**
+     * Handles resampling when the number of loaded points exceeds the target.
+     */
+    private void handleResampling(Set<Listener> listeners) {
+        if (numLoadedPoints >= targetNumPoints) {
+            // Reload and resample the track at a lower frequency.
+            Log.i(TAG, "Resampling track after " + numLoadedPoints + " points.");
+            resetSamplingState();
+            for (Listener listener : listeners) {
+                listener.clearTrackPoints();
+            }
+        }
+    }
 
+
+
+    /**
+     * Creates a ContentObserver that runs the given action on change.
+     */
+    private ContentObserver createObserver(Runnable action) {
+        return new ContentObserver(handler) {
+            @Override
+            public void onChange(boolean selfChange) {
+                action.run();
+            }
+        };
+    }
 
     /**
      * Resets the track points sampling states.

@@ -32,8 +32,6 @@ import java.io.File;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
@@ -97,74 +95,58 @@ public class ContentProviderUtils {
      * @param cursor the cursor pointing to the track
      */
     public static Track createTrack(Cursor cursor) {
-        int idIndex = cursor.getColumnIndexOrThrow(TracksColumns._ID);
-        int uuidIndex = cursor.getColumnIndexOrThrow(TracksColumns.UUID);
-        int nameIndex = cursor.getColumnIndexOrThrow(TracksColumns.NAME);
-        int descriptionIndex = cursor.getColumnIndexOrThrow(TracksColumns.DESCRIPTION);
-        int activityTypeIndex = cursor.getColumnIndexOrThrow(TracksColumns.ACTIVITY_TYPE);
-        int activityTypeLocalizedIndex = cursor.getColumnIndexOrThrow(TracksColumns.ACTIVITY_TYPE_LOCALIZED);
-        int startTimeIndex = cursor.getColumnIndexOrThrow(TracksColumns.STARTTIME);
-        int startTimeOffsetIndex = cursor.getColumnIndexOrThrow(TracksColumns.STARTTIME_OFFSET);
-        int stopTimeIndex = cursor.getColumnIndexOrThrow(TracksColumns.STOPTIME);
-        int totalDistanceIndex = cursor.getColumnIndexOrThrow(TracksColumns.TOTALDISTANCE);
-        int totalTimeIndex = cursor.getColumnIndexOrThrow(TracksColumns.TOTALTIME);
-        int movingTimeIndex = cursor.getColumnIndexOrThrow(TracksColumns.MOVINGTIME);
-        int maxSpeedIndex = cursor.getColumnIndexOrThrow(TracksColumns.MAXSPEED);
-        int minAltitudeIndex = cursor.getColumnIndexOrThrow(TracksColumns.MIN_ALTITUDE);
-        int maxAltitudeIndex = cursor.getColumnIndexOrThrow(TracksColumns.MAX_ALTITUDE);
-        int altitudeGainIndex = cursor.getColumnIndexOrThrow(TracksColumns.ALTITUDE_GAIN);
-        int altitudeLossIndex = cursor.getColumnIndexOrThrow(TracksColumns.ALTITUDE_LOSS);
+        CachedTrackIndexes idx = new CachedTrackIndexes(cursor);
 
-        Track track = new Track(ZoneOffset.ofTotalSeconds(cursor.getInt(startTimeOffsetIndex)));
+        Track track = new Track(ZoneOffset.ofTotalSeconds(cursor.getInt(idx.startTimeOffsetIndex)));
         TrackStatistics trackStatistics = track.getTrackStatistics();
-        if (!cursor.isNull(idIndex)) {
-            track.setId(new Track.Id(cursor.getLong(idIndex)));
+        if (!cursor.isNull(idx.idIndex)) {
+            track.setId(new Track.Id(cursor.getLong(idx.idIndex)));
         }
-        if (!cursor.isNull(uuidIndex)) {
-            track.setUuid(UUIDUtils.fromBytes(cursor.getBlob(uuidIndex)));
+        if (!cursor.isNull(idx.uuidIndex)) {
+            track.setUuid(UUIDUtils.fromBytes(cursor.getBlob(idx.uuidIndex)));
         }
-        if (!cursor.isNull(nameIndex)) {
-            track.setName(cursor.getString(nameIndex));
+        if (!cursor.isNull(idx.nameIndex)) {
+            track.setName(cursor.getString(idx.nameIndex));
         }
-        if (!cursor.isNull(descriptionIndex)) {
-            track.setDescription(cursor.getString(descriptionIndex));
+        if (!cursor.isNull(idx.descriptionIndex)) {
+            track.setDescription(cursor.getString(idx.descriptionIndex));
         }
-        if (!cursor.isNull(activityTypeIndex)) {
-            track.setActivityType(ActivityType.findBy(cursor.getString(activityTypeIndex)));
+        if (!cursor.isNull(idx.activityTypeIndex)) {
+            track.setActivityType(ActivityType.findBy(cursor.getString(idx.activityTypeIndex)));
         }
-        if (!cursor.isNull(activityTypeLocalizedIndex)) {
-            track.setActivityTypeLocalized(cursor.getString(activityTypeLocalizedIndex));
+        if (!cursor.isNull(idx.activityTypeLocalizedIndex)) {
+            track.setActivityTypeLocalized(cursor.getString(idx.activityTypeLocalizedIndex));
         }
 
-        if (!cursor.isNull(startTimeIndex)) {
-            trackStatistics.setStartTime(Instant.ofEpochMilli(cursor.getLong(startTimeIndex)));
+        if (!cursor.isNull(idx.startTimeIndex)) {
+            trackStatistics.setStartTime(Instant.ofEpochMilli(cursor.getLong(idx.startTimeIndex)));
         }
-        if (!cursor.isNull(stopTimeIndex)) {
-            trackStatistics.setStopTime(Instant.ofEpochMilli(cursor.getLong(stopTimeIndex)));
+        if (!cursor.isNull(idx.stopTimeIndex)) {
+            trackStatistics.setStopTime(Instant.ofEpochMilli(cursor.getLong(idx.stopTimeIndex)));
         }
-        if (!cursor.isNull(totalDistanceIndex)) {
-            trackStatistics.setTotalDistance(Distance.of(cursor.getFloat(totalDistanceIndex)));
+        if (!cursor.isNull(idx.totalDistanceIndex)) {
+            trackStatistics.setTotalDistance(Distance.of(cursor.getFloat(idx.totalDistanceIndex)));
         }
-        if (!cursor.isNull(totalTimeIndex)) {
-            trackStatistics.setTotalTime(Duration.ofMillis(cursor.getLong(totalTimeIndex)));
+        if (!cursor.isNull(idx.totalTimeIndex)) {
+            trackStatistics.setTotalTime(Duration.ofMillis(cursor.getLong(idx.totalTimeIndex)));
         }
-        if (!cursor.isNull(movingTimeIndex)) {
-            trackStatistics.setMovingTime(Duration.ofMillis(cursor.getLong(movingTimeIndex)));
+        if (!cursor.isNull(idx.movingTimeIndex)) {
+            trackStatistics.setMovingTime(Duration.ofMillis(cursor.getLong(idx.movingTimeIndex)));
         }
-        if (!cursor.isNull(maxSpeedIndex)) {
-            trackStatistics.setMaxSpeed(Speed.of(cursor.getFloat(maxSpeedIndex)));
+        if (!cursor.isNull(idx.maxSpeedIndex)) {
+            trackStatistics.setMaxSpeed(Speed.of(cursor.getFloat(idx.maxSpeedIndex)));
         }
-        if (!cursor.isNull(minAltitudeIndex)) {
-            trackStatistics.setMinAltitude(cursor.getFloat(minAltitudeIndex));
+        if (!cursor.isNull(idx.minAltitudeIndex)) {
+            trackStatistics.setMinAltitude(cursor.getFloat(idx.minAltitudeIndex));
         }
-        if (!cursor.isNull(maxAltitudeIndex)) {
-            trackStatistics.setMaxAltitude(cursor.getFloat(maxAltitudeIndex));
+        if (!cursor.isNull(idx.maxAltitudeIndex)) {
+            trackStatistics.setMaxAltitude(cursor.getFloat(idx.maxAltitudeIndex));
         }
-        if (!cursor.isNull(altitudeGainIndex)) {
-            trackStatistics.setTotalAltitudeGain(cursor.getFloat(altitudeGainIndex));
+        if (!cursor.isNull(idx.altitudeGainIndex)) {
+            trackStatistics.setTotalAltitudeGain(cursor.getFloat(idx.altitudeGainIndex));
         }
-        if (!cursor.isNull(altitudeLossIndex)) {
-            trackStatistics.setTotalAltitudeLoss(cursor.getFloat(altitudeLossIndex));
+        if (!cursor.isNull(idx.altitudeLossIndex)) {
+            trackStatistics.setTotalAltitudeLoss(cursor.getFloat(idx.altitudeLossIndex));
         }
 
         return track;
@@ -189,44 +171,25 @@ public class ContentProviderUtils {
             FileUtils.deleteDirectoryRecurse(FileUtils.getPhotoDir(context, trackId));
         }
 
-        String whereClause = String.format(TracksColumns._ID + " IN (%s)", TextUtils.join(",", Collections.nCopies(trackIds.size(), "?")));
-        contentResolver.delete(TracksColumns.CONTENT_URI, whereClause, trackIds.stream().map(trackId -> Long.toString(trackId.id())).toArray(String[]::new));
+        String whereClause = DbUtils.buildInClause(TracksColumns._ID, trackIds.size());
+        contentResolver.delete(TracksColumns.CONTENT_URI, whereClause, DbUtils.idArgs(trackIds.stream().mapToLong(Track.Id::id).toArray()));
     }
 
     public void deleteTrack(Context context, @NonNull Track.Id trackId) {
         // Delete track folder resources.
         FileUtils.deleteDirectoryRecurse(FileUtils.getPhotoDir(context, trackId));
-        contentResolver.delete(TracksColumns.CONTENT_URI, TracksColumns._ID + "=?", new String[]{Long.toString(trackId.id())});
+        contentResolver.delete(TracksColumns.CONTENT_URI, DbUtils.eqClause(TracksColumns._ID), DbUtils.idArgs(trackId.id()));
     }
 
     //TODO Only use for tests; also move to tests.
     @VisibleForTesting
     public List<Track> getTracks() {
-        ArrayList<Track> tracks = new ArrayList<>();
-        try (Cursor cursor = getTrackCursor(null, null, TracksColumns._ID)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                tracks.ensureCapacity(cursor.getCount());
-                do {
-                    tracks.add(createTrack(cursor));
-                } while (cursor.moveToNext());
-            }
-        }
-        return tracks;
+        return DbUtils.cursorToList(getTrackCursor(null, null, TracksColumns._ID), ContentProviderUtils::createTrack);
     }
 
     public List<Track> getTracks(ContentProviderSelectionInterface selection) {
         SelectionData selectionData = selection.buildSelection();
-        ArrayList<Track> tracks = new ArrayList<>();
-        try (Cursor cursor = getTrackCursor(selectionData.selection(), selectionData.selectionArgs(), TracksColumns._ID)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                tracks.ensureCapacity(cursor.getCount());
-                do {
-                    tracks.add(createTrack(cursor));
-                } while (cursor.moveToNext());
-            }
-        }
-
-        return tracks;
+        return DbUtils.cursorToList(getTrackCursor(selectionData.selection(), selectionData.selectionArgs(), TracksColumns._ID), ContentProviderUtils::createTrack);
     }
 
     public Cursor searchTracks(String searchQuery) {
@@ -260,7 +223,7 @@ public class ContentProviderUtils {
     }
 
     public Track getTrack(@NonNull Track.Id trackId) {
-        try (Cursor cursor = getTrackCursor(TracksColumns._ID + "=?", new String[]{Long.toString(trackId.id())}, null)) {
+        try (Cursor cursor = getTrackCursor(DbUtils.eqClause(TracksColumns._ID), DbUtils.idArgs(trackId.id()), null)) {
             if (cursor != null && cursor.moveToNext()) {
                 return createTrack(cursor);
             }
@@ -309,7 +272,7 @@ public class ContentProviderUtils {
      * @param track the track
      */
     public void updateTrack(Track track) {
-        contentResolver.update(TracksColumns.CONTENT_URI, createContentValues(track), TracksColumns._ID + "=?", new String[]{Long.toString(track.getId().id())});
+        contentResolver.update(TracksColumns.CONTENT_URI, createContentValues(track), DbUtils.eqClause(TracksColumns._ID), DbUtils.idArgs(track.getId().id()));
     }
 
     private ContentValues createContentValues(Track track) {
@@ -325,32 +288,26 @@ public class ContentProviderUtils {
         values.put(TracksColumns.ACTIVITY_TYPE, track.getActivityType() != null ? track.getActivityType().getId() : null);
         values.put(TracksColumns.ACTIVITY_TYPE_LOCALIZED, track.getActivityTypeLocalized());
         values.put(TracksColumns.STARTTIME_OFFSET, track.getZoneOffset().getTotalSeconds());
-        if (trackStatistics.getStartTime() != null) {
-            values.put(TracksColumns.STARTTIME, trackStatistics.getStartTime().toEpochMilli());
-        }
-        if (trackStatistics.getStopTime() != null) {
-            values.put(TracksColumns.STOPTIME, trackStatistics.getStopTime().toEpochMilli());
-        }
-        values.put(TracksColumns.TOTALDISTANCE, trackStatistics.getTotalDistance().toM());
-        values.put(TracksColumns.TOTALTIME, trackStatistics.getTotalTime().toMillis());
-        values.put(TracksColumns.MOVINGTIME, trackStatistics.getMovingTime().toMillis());
-        values.put(TracksColumns.AVGSPEED, trackStatistics.getAverageSpeed().toMPS());
-        values.put(TracksColumns.AVGMOVINGSPEED, trackStatistics.getAverageMovingSpeed().toMPS());
-        values.put(TracksColumns.MAXSPEED, trackStatistics.getMaxSpeed().toMPS());
-        values.put(TracksColumns.MIN_ALTITUDE, trackStatistics.getMinAltitude());
-        values.put(TracksColumns.MAX_ALTITUDE, trackStatistics.getMaxAltitude());
-        values.put(TracksColumns.ALTITUDE_GAIN, trackStatistics.getTotalAltitudeGain());
-        values.put(TracksColumns.ALTITUDE_LOSS, trackStatistics.getTotalAltitudeLoss());
+        putStatisticsFields(values, trackStatistics);
 
         return values;
     }
 
     public void updateTrackStatistics(@NonNull Track.Id trackId, @NonNull TrackStatistics trackStatistics) {
-        contentResolver.update(TracksColumns.CONTENT_URI, createContentValues(trackStatistics), TracksColumns._ID + "=?", new String[]{Long.toString(trackId.id())});
+        contentResolver.update(TracksColumns.CONTENT_URI, createContentValues(trackStatistics), DbUtils.eqClause(TracksColumns._ID), DbUtils.idArgs(trackId.id()));
     }
 
     private ContentValues createContentValues(TrackStatistics trackStatistics) {
         ContentValues values = new ContentValues();
+        putStatisticsFields(values, trackStatistics);
+        return values;
+    }
+
+    /**
+     * Puts statistics fields into ContentValues.
+     * Shared by both {@link #createContentValues(Track)} and {@link #createContentValues(TrackStatistics)}.
+     */
+    private void putStatisticsFields(ContentValues values, TrackStatistics trackStatistics) {
         if (trackStatistics.getStartTime() != null) {
             values.put(TracksColumns.STARTTIME, trackStatistics.getStartTime().toEpochMilli());
         }
@@ -367,46 +324,32 @@ public class ContentProviderUtils {
         values.put(TracksColumns.MAX_ALTITUDE, trackStatistics.getMaxAltitude());
         values.put(TracksColumns.ALTITUDE_GAIN, trackStatistics.getTotalAltitudeGain());
         values.put(TracksColumns.ALTITUDE_LOSS, trackStatistics.getTotalAltitudeLoss());
-        return values;
     }
 
     public Marker createMarker(Cursor cursor) {
-        int idIndex = cursor.getColumnIndexOrThrow(MarkerColumns._ID);
-        int nameIndex = cursor.getColumnIndexOrThrow(MarkerColumns.NAME);
-        int descriptionIndex = cursor.getColumnIndexOrThrow(MarkerColumns.DESCRIPTION);
-        int categoryIndex = cursor.getColumnIndexOrThrow(MarkerColumns.CATEGORY);
-        int iconIndex = cursor.getColumnIndexOrThrow(MarkerColumns.ICON);
-        int trackIdIndex = cursor.getColumnIndexOrThrow(MarkerColumns.TRACKID);
-        int longitudeIndex = cursor.getColumnIndexOrThrow(MarkerColumns.LONGITUDE);
-        int latitudeIndex = cursor.getColumnIndexOrThrow(MarkerColumns.LATITUDE);
-        int timeIndex = cursor.getColumnIndexOrThrow(MarkerColumns.TIME);
-        int altitudeIndex = cursor.getColumnIndexOrThrow(MarkerColumns.ALTITUDE);
-        int accuracyIndex = cursor.getColumnIndexOrThrow(MarkerColumns.ACCURACY);
-        int bearingIndex = cursor.getColumnIndexOrThrow(MarkerColumns.BEARING);
-        int photoUrlIndex = cursor.getColumnIndexOrThrow(MarkerColumns.PHOTOURL);
-
+        CachedMarkerIndexes idx = new CachedMarkerIndexes(cursor);
 
         Double latitude = null;
         Double longitude = null;
         Altitude.WGS84 altitude = null;
         Distance horizontalAccuracy = null;
         Float bearing = null;
-        if (!cursor.isNull(longitudeIndex) && !cursor.isNull(latitudeIndex)) {
-            latitude = (((double) cursor.getInt(latitudeIndex)) / 1E6);
-            longitude = (((double) cursor.getInt(longitudeIndex)) / 1E6);
+        if (!cursor.isNull(idx.longitudeIndex) && !cursor.isNull(idx.latitudeIndex)) {
+            latitude = (((double) cursor.getInt(idx.latitudeIndex)) / 1E6);
+            longitude = (((double) cursor.getInt(idx.longitudeIndex)) / 1E6);
         }
-        if (!cursor.isNull(altitudeIndex)) {
-            altitude = Altitude.WGS84.of(cursor.getFloat(altitudeIndex));
+        if (!cursor.isNull(idx.altitudeIndex)) {
+            altitude = Altitude.WGS84.of(cursor.getFloat(idx.altitudeIndex));
         }
-        if (!cursor.isNull(accuracyIndex)) {
-            horizontalAccuracy = Distance.of(cursor.getFloat(accuracyIndex));
+        if (!cursor.isNull(idx.accuracyIndex)) {
+            horizontalAccuracy = Distance.of(cursor.getFloat(idx.accuracyIndex));
         }
-        if (!cursor.isNull(bearingIndex)) {
-            bearing = cursor.getFloat(bearingIndex);
+        if (!cursor.isNull(idx.bearingIndex)) {
+            bearing = cursor.getFloat(idx.bearingIndex);
         }
 
         Position position = new Position(
-                Instant.ofEpochMilli(cursor.getLong(timeIndex)),
+                Instant.ofEpochMilli(cursor.getLong(idx.timeIndex)),
                 latitude,
                 longitude,
                 horizontalAccuracy,
@@ -415,32 +358,32 @@ public class ContentProviderUtils {
                 bearing,
                 null);
 
-        Track.Id trackId = new Track.Id(cursor.getLong(trackIdIndex));
+        Track.Id trackId = new Track.Id(cursor.getLong(idx.trackIdIndex));
         Marker marker = new Marker(trackId, position);
 
-        if (!cursor.isNull(idIndex)) {
-            marker.setId(new Marker.Id(cursor.getLong(idIndex)));
+        if (!cursor.isNull(idx.idIndex)) {
+            marker.setId(new Marker.Id(cursor.getLong(idx.idIndex)));
         }
-        if (!cursor.isNull(nameIndex)) {
-            marker.setName(cursor.getString(nameIndex));
+        if (!cursor.isNull(idx.nameIndex)) {
+            marker.setName(cursor.getString(idx.nameIndex));
         }
-        if (!cursor.isNull(descriptionIndex)) {
-            marker.setDescription(cursor.getString(descriptionIndex));
+        if (!cursor.isNull(idx.descriptionIndex)) {
+            marker.setDescription(cursor.getString(idx.descriptionIndex));
         }
-        if (!cursor.isNull(categoryIndex)) {
-            marker.setCategory(cursor.getString(categoryIndex));
+        if (!cursor.isNull(idx.categoryIndex)) {
+            marker.setCategory(cursor.getString(idx.categoryIndex));
         }
-        if (!cursor.isNull(iconIndex)) {
-            marker.setIcon(cursor.getString(iconIndex));
+        if (!cursor.isNull(idx.iconIndex)) {
+            marker.setIcon(cursor.getString(idx.iconIndex));
         }
-        if (!cursor.isNull(photoUrlIndex)) {
-            String photoUrl = cursor.getString(photoUrlIndex);
+        if (!cursor.isNull(idx.photoUrlIndex)) {
+            String photoUrl = cursor.getString(idx.photoUrlIndex);
             if (photoUrl.isEmpty()) {
                 // Before v4.18.0: a marker without a picture as URL ""
                 // TODO Data should be migrated.
                 marker.setPhotoUrl(null);
             } else {
-                marker.setPhotoUrl(Uri.parse(cursor.getString(photoUrlIndex)));
+                marker.setPhotoUrl(Uri.parse(cursor.getString(idx.photoUrlIndex)));
             }
         }
 
@@ -451,7 +394,7 @@ public class ContentProviderUtils {
     public void deleteMarker(Context context, Marker.Id markerId) {
         final Marker marker = getMarker(markerId);
         deleteMarkerPhoto(context, marker);
-        contentResolver.delete(MarkerColumns.CONTENT_URI, MarkerColumns._ID + "=?", new String[]{Long.toString(markerId.id())});
+        contentResolver.delete(MarkerColumns.CONTENT_URI, DbUtils.eqClause(MarkerColumns._ID), DbUtils.idArgs(markerId.id()));
     }
 
     /**
@@ -459,8 +402,8 @@ public class ContentProviderUtils {
      */
     public Integer getNextMarkerNumber(@NonNull Track.Id trackId) {
         String[] projection = {MarkerColumns._ID};
-        String selection = MarkerColumns.TRACKID + "=?";
-        String[] selectionArgs = new String[]{Long.toString(trackId.id())};
+        String selection = DbUtils.eqClause(MarkerColumns.TRACKID);
+        String[] selectionArgs = DbUtils.idArgs(trackId.id());
         try (Cursor cursor = getMarkerCursor(projection, selection, selectionArgs, MarkerColumns._ID, -1)) {
             if (cursor != null) {
                 return cursor.getCount();
@@ -470,7 +413,7 @@ public class ContentProviderUtils {
     }
 
     public Marker getMarker(@NonNull Marker.Id markerId) {
-        try (Cursor cursor = getMarkerCursor(null, MarkerColumns._ID + "=?", new String[]{Long.toString(markerId.id())}, MarkerColumns._ID, 1)) {
+        try (Cursor cursor = getMarkerCursor(null, DbUtils.eqClause(MarkerColumns._ID), DbUtils.idArgs(markerId.id()), MarkerColumns._ID, 1)) {
             if (cursor != null && cursor.moveToFirst()) {
                 return createMarker(cursor);
             }
@@ -489,11 +432,11 @@ public class ContentProviderUtils {
         String selection;
         String[] selectionArgs;
         if (minMarkerId != null) {
-            selection = MarkerColumns.TRACKID + "=? AND " + MarkerColumns._ID + ">=?";
-            selectionArgs = new String[]{Long.toString(trackId.id()), Long.toString(minMarkerId.id())};
+            selection = DbUtils.eqClause(MarkerColumns.TRACKID) + " AND " + MarkerColumns._ID + ">=?";
+            selectionArgs = new String[]{DbUtils.idArgs(trackId.id())[0], DbUtils.idArgs(minMarkerId.id())[0]};
         } else {
-            selection = MarkerColumns.TRACKID + "=?";
-            selectionArgs = new String[]{Long.toString(trackId.id())};
+            selection = DbUtils.eqClause(MarkerColumns.TRACKID);
+            selectionArgs = DbUtils.idArgs(trackId.id());
         }
         return getMarkerCursor(null, selection, selectionArgs, MarkerColumns._ID, maxCount);
     }
@@ -501,15 +444,7 @@ public class ContentProviderUtils {
     @Deprecated //TODO Move to test package
     @VisibleForTesting
     public List<Marker> getMarkers(Track.Id trackId) {
-        ArrayList<Marker> markers = new ArrayList<>();
-        try (Cursor cursor = getMarkerCursor(trackId, null, -1)) {
-            if (cursor.moveToFirst()) {
-                do {
-                    markers.add(createMarker(cursor));
-                } while (cursor.moveToNext());
-            }
-        }
-        return markers;
+        return DbUtils.cursorToList(getMarkerCursor(trackId, null, -1), this::createMarker);
     }
 
     // TODO Merge with updateMarker
@@ -542,7 +477,7 @@ public class ContentProviderUtils {
         if (!updateMarker.hasPhoto()) {
             deleteMarkerPhoto(context, savedMarker);
         }
-        int rows = contentResolver.update(MarkerColumns.CONTENT_URI, createContentValues(updateMarker), MarkerColumns._ID + "=?", new String[]{Long.toString(updateMarker.getId().id())});
+        int rows = contentResolver.update(MarkerColumns.CONTENT_URI, createContentValues(updateMarker), DbUtils.eqClause(MarkerColumns._ID), DbUtils.idArgs(updateMarker.getId().id()));
         return rows == 1;
     }
 
@@ -600,8 +535,8 @@ public class ContentProviderUtils {
 
         if (query == null) {
             if (trackId != null) {
-                selection = MarkerColumns.TRACKID + " = ?";
-                selectionArgs = new String[]{Long.toString(trackId.id())};
+                selection = DbUtils.eqClause(MarkerColumns.TRACKID);
+                selectionArgs = DbUtils.idArgs(trackId.id());
             }
         } else {
             selection = MarkerColumns.NAME + " LIKE ? OR " +
@@ -611,15 +546,7 @@ public class ContentProviderUtils {
             sortOrder = MarkerColumns.DEFAULT_SORT_ORDER + " DESC";
         }
 
-        ArrayList<Marker> markers = new ArrayList<>();
-        try (Cursor cursor = getMarkerCursor(null, selection, selectionArgs, sortOrder, -1)) {
-            if (cursor.moveToFirst()) {
-                do {
-                    markers.add(createMarker(cursor));
-                } while (cursor.moveToNext());
-            }
-        }
-        return markers;
+        return DbUtils.cursorToList(getMarkerCursor(null, selection, selectionArgs, sortOrder, -1), this::createMarker);
     }
 
     /**
@@ -693,8 +620,8 @@ public class ContentProviderUtils {
      */
     @Deprecated
     public TrackPoint.Id getLastTrackPointId(@NonNull Track.Id trackId) {
-        String selection = TrackPointsColumns._ID + "=(SELECT MAX(" + TrackPointsColumns._ID + ") from " + TrackPointsColumns.TABLE_NAME + " WHERE " + TrackPointsColumns.TRACKID + "=?)";
-        String[] selectionArgs = new String[]{Long.toString(trackId.id())};
+        String selection = TrackPointsColumns._ID + "=(SELECT MAX(" + TrackPointsColumns._ID + ") from " + TrackPointsColumns.TABLE_NAME + " WHERE " + DbUtils.eqClause(TrackPointsColumns.TRACKID) + ")";
+        String[] selectionArgs = DbUtils.idArgs(trackId.id());
         try (Cursor cursor = getTrackPointCursor(new String[]{TrackPointsColumns._ID}, selection, selectionArgs, TrackPointsColumns._ID)) {
             if (cursor != null && cursor.moveToFirst()) {
                 return new TrackPoint.Id(cursor.getLong(cursor.getColumnIndexOrThrow(TrackPointsColumns._ID)));
@@ -708,8 +635,8 @@ public class ContentProviderUtils {
      */
     @Deprecated
     public TrackPoint.Id getTrackPointId(Track.Id trackId, Position position) {
-        String selection = TrackPointsColumns._ID + "=(SELECT MAX(" + TrackPointsColumns._ID + ") FROM " + TrackPointsColumns.TABLE_NAME + " WHERE " + TrackPointsColumns.TRACKID + "=? AND " + TrackPointsColumns.TIME + "=?)";
-        String[] selectionArgs = new String[]{Long.toString(trackId.id()), Long.toString(position.time().toEpochMilli())};
+        String selection = TrackPointsColumns._ID + "=(SELECT MAX(" + TrackPointsColumns._ID + ") FROM " + TrackPointsColumns.TABLE_NAME + " WHERE " + DbUtils.eqClause(TrackPointsColumns.TRACKID) + " AND " + TrackPointsColumns.TIME + "=?)";
+        String[] selectionArgs = new String[]{DbUtils.idArgs(trackId.id())[0], Long.toString(position.time().toEpochMilli())};
         try (Cursor cursor = getTrackPointCursor(new String[]{TrackPointsColumns._ID}, selection, selectionArgs, TrackPointsColumns._ID)) {
             if (cursor != null && cursor.moveToFirst()) {
                 return new TrackPoint.Id(cursor.getLong(cursor.getColumnIndexOrThrow(TrackPointsColumns._ID)));
@@ -738,11 +665,11 @@ public class ContentProviderUtils {
         String selection;
         String[] selectionArgs;
         if (startTrackPointId != null) {
-            selection = TrackPointsColumns.TRACKID + "=? AND " + TrackPointsColumns._ID + ">=?";
-            selectionArgs = new String[]{Long.toString(trackId.id()), Long.toString(startTrackPointId.id())};
+            selection = DbUtils.eqClause(TrackPointsColumns.TRACKID) + " AND " + TrackPointsColumns._ID + ">=?";
+            selectionArgs = new String[]{DbUtils.idArgs(trackId.id())[0], DbUtils.idArgs(startTrackPointId.id())[0]};
         } else {
-            selection = TrackPointsColumns.TRACKID + "=?";
-            selectionArgs = new String[]{Long.toString(trackId.id())};
+            selection = DbUtils.eqClause(TrackPointsColumns.TRACKID);
+            selectionArgs = DbUtils.idArgs(trackId.id());
         }
 
         return getTrackPointCursor(null, selection, selectionArgs, TrackPointsColumns.DEFAULT_SORT_ORDER);
@@ -756,8 +683,8 @@ public class ContentProviderUtils {
      */
     @Deprecated
     public TrackPoint getLastValidTrackPoint(Track.Id trackId) {
-        String selection = TrackPointsColumns._ID + "=(SELECT MAX(" + TrackPointsColumns._ID + ") FROM " + TrackPointsColumns.TABLE_NAME + " WHERE " + TrackPointsColumns.TRACKID + "=? AND " + TrackPointsColumns.TYPE + " IN (" + TrackPoint.Type.SEGMENT_START_AUTOMATIC.type_db + "," + TrackPoint.Type.TRACKPOINT.type_db + "))";
-        String[] selectionArgs = new String[]{Long.toString(trackId.id())};
+        String selection = TrackPointsColumns._ID + "=(SELECT MAX(" + TrackPointsColumns._ID + ") FROM " + TrackPointsColumns.TABLE_NAME + " WHERE " + DbUtils.eqClause(TrackPointsColumns.TRACKID) + " AND " + TrackPointsColumns.TYPE + " IN (" + TrackPoint.Type.SEGMENT_START_AUTOMATIC.type_db + "," + TrackPoint.Type.TRACKPOINT.type_db + "))";
+        String[] selectionArgs = DbUtils.idArgs(trackId.id());
         return findTrackPointBy(selection, selectionArgs);
     }
 

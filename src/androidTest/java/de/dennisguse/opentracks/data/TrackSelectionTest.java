@@ -203,4 +203,46 @@ public class TrackSelectionTest extends TestCase {
         assertEquals(selection.selectionArgs()[2], Long.toString(instant.toEpochMilli()));
         assertEquals(selection.selectionArgs()[3], Long.toString(instant.toEpochMilli() + oneDay));
     }
+
+    @Test
+    public void testIsEmpty() {
+        // given
+        TrackSelection emptyFilter = new TrackSelection();
+        TrackSelection nonEmptyFilter = new TrackSelection().addTrackId(new Track.Id(1));
+
+        // then
+        assertTrue(emptyFilter.isEmpty());
+        assertFalse(nonEmptyFilter.isEmpty());
+    }
+
+    @Test
+    public void testAddDuplicateTrackId() {
+        // given
+        Track.Id trackId = new Track.Id(1);
+        TrackSelection filter = new TrackSelection()
+                .addTrackId(trackId)
+                .addTrackId(trackId);
+
+        // when
+        SelectionData selection = filter.buildSelection();
+
+        // then - duplicate should be rejected, only one placeholder
+        assertEquals("_id IN (?)", selection.selection());
+        assertEquals(1, selection.selectionArgs().length);
+    }
+
+    @Test
+    public void testAddDuplicateCategory() {
+        // given
+        TrackSelection filter = new TrackSelection()
+                .addActivityType("running")
+                .addActivityType("running");
+
+        // when
+        SelectionData selection = filter.buildSelection();
+
+        // then - duplicate should be rejected, only one placeholder
+        assertEquals("category IN (?)", selection.selection());
+        assertEquals(1, selection.selectionArgs().length);
+    }
 }

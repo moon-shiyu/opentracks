@@ -33,6 +33,14 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
 
     private final Context context;
 
+    /**
+     * Functional interface for row-by-row data migration updates.
+     */
+    @FunctionalInterface
+    private interface RowUpdater {
+        void updateRow(SQLiteDatabase db, Cursor cursor);
+    }
+
     public CustomSQLiteOpenHelper(Context context) {
         this(context, ((Startup) context.getApplicationContext()).getDatabaseName());
     }
@@ -117,377 +125,284 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
      * SQLite3 does not support drop columns; therefore new tables are created and data is copied.
      */
     private void upgradeFrom23to24(SQLiteDatabase db) {
-        db.beginTransaction();
-        db.execSQL("ALTER TABLE tracks RENAME TO tracks_old");
-        db.execSQL("CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, icon TEXT)");
-        db.execSQL("INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, icon FROM tracks_old");
-        db.execSQL("DROP TABLE tracks_old");
+        DbUtils.runInTransaction(db, () -> {
+            recreateTable(db, "tracks",
+                    "CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, icon TEXT)",
+                    "INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, icon FROM tracks_old");
 
-        db.execSQL("ALTER TABLE waypoints RENAME TO waypoints_old");
-        db.execSQL("CREATE TABLE waypoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, icon TEXT, trackid INTEGER, length FLOAT, duration INTEGER, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, bearing FLOAT, photoUrl TEXT)");
-        db.execSQL("INSERT INTO waypoints SELECT _id, name, description, category, icon, trackid, length, duration, longitude, latitude, time, elevation, accuracy, bearing, photoUrl FROM waypoints_old");
-        db.execSQL("DROP TABLE waypoints_old");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+            recreateTable(db, "waypoints",
+                    "CREATE TABLE waypoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, icon TEXT, trackid INTEGER, length FLOAT, duration INTEGER, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, bearing FLOAT, photoUrl TEXT)",
+                    "INSERT INTO waypoints SELECT _id, name, description, category, icon, trackid, length, duration, longitude, latitude, time, elevation, accuracy, bearing, photoUrl FROM waypoints_old");
+        });
     }
 
     private void downgradeFrom24to23(SQLiteDatabase db) {
         //Not needed as the deleted columns did not contain any data
-        db.beginTransaction();
-        db.execSQL("ALTER TABLE tracks RENAME TO tracks_old");
-        db.execSQL("CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, mingrade FLOAT, maxgrade FLOAT, icon TEXT)");
-        db.execSQL("INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, 0, 0, icon FROM tracks_old");
-        db.execSQL("DROP TABLE tracks_old");
+        DbUtils.runInTransaction(db, () -> {
+            recreateTable(db, "tracks",
+                    "CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, mingrade FLOAT, maxgrade FLOAT, icon TEXT)",
+                    "INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, 0, 0, icon FROM tracks_old");
 
-        db.execSQL("ALTER TABLE waypoints RENAME TO waypoints_old");
-        db.execSQL("CREATE TABLE waypoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, icon TEXT, trackid INTEGER, type INTEGER, length FLOAT, duration INTEGER, starttime INTEGER, startid INTEGER, stopid INTEGER, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, mingrade FLOAT, maxgrade FLOAT, photoUrl TEXT)");
-        db.execSQL("INSERT INTO waypoints SELECT _id, name, description, category, icon, trackid, 0, length, duration, 0, 0, 0, longitude, latitude, time, elevation, accuracy, 0, bearing, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, photoUrl FROM waypoints_old");
-        db.execSQL("DROP TABLE waypoints_old");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+            recreateTable(db, "waypoints",
+                    "CREATE TABLE waypoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, icon TEXT, trackid INTEGER, type INTEGER, length FLOAT, duration INTEGER, starttime INTEGER, startid INTEGER, stopid INTEGER, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, mingrade FLOAT, maxgrade FLOAT, photoUrl TEXT)",
+                    "INSERT INTO waypoints SELECT _id, name, description, category, icon, trackid, 0, length, duration, 0, 0, 0, longitude, latitude, time, elevation, accuracy, 0, bearing, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, photoUrl FROM waypoints_old");
+        });
     }
 
     /**
      * Add indeces for foreign key trackId
      */
     private void upgradeFrom24to25(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-        db.execSQL("CREATE INDEX waypoints_trackid_index ON waypoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+            db.execSQL("CREATE INDEX waypoints_trackid_index ON waypoints(trackid)");
+        });
     }
 
     private void downgradeFrom25to24(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("DROP INDEX trackpoints_trackid_index");
-        db.execSQL("DROP INDEX waypoints_trackid_index");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("DROP INDEX trackpoints_trackid_index");
+            db.execSQL("DROP INDEX waypoints_trackid_index");
+        });
     }
 
     /**
      * Add track UUID to prevent re-import of existing tracks
      */
     private void upgradeFrom25to26(SQLiteDatabase db) {
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("ALTER TABLE tracks ADD COLUMN uuid BLOB");
 
-        db.execSQL("ALTER TABLE tracks ADD COLUMN uuid BLOB");
-        try (Cursor cursor = db.query("tracks", new String[]{"_id"}, null, null, null, null, null)) {
-            if (cursor.moveToFirst()) {
+            updateEachRow(db, "tracks", new String[]{"_id"}, (database, cursor) -> {
                 int trackIdIndex = cursor.getColumnIndexOrThrow("_id");
-                do {
-                    Track.Id trackId = new Track.Id(cursor.getLong(trackIdIndex));
-                    ContentValues cv = new ContentValues();
-                    cv.put("uuid", UUIDUtils.toBytes(UUID.randomUUID()));
-                    db.update("tracks", cv, "_id = ?", new String[]{String.valueOf(trackId.id())});
-                } while (cursor.moveToNext());
-            }
-        }
+                Track.Id trackId = new Track.Id(cursor.getLong(trackIdIndex));
+                ContentValues cv = new ContentValues();
+                cv.put("uuid", UUIDUtils.toBytes(UUID.randomUUID()));
+                database.update("tracks", cv, "_id = ?", new String[]{String.valueOf(trackId.id())});
+            });
 
-        db.execSQL("CREATE UNIQUE INDEX tracks_uuid_index ON tracks(uuid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+            db.execSQL("CREATE UNIQUE INDEX tracks_uuid_index ON tracks(uuid)");
+        });
     }
 
     private void downgradeFrom26to25(SQLiteDatabase db) {
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("DROP INDEX tracks_uuid_index");
 
-        db.execSQL("DROP INDEX tracks_uuid_index");
-
-        db.execSQL("ALTER TABLE tracks RENAME TO tracks_old");
-        db.execSQL("CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, mingrade FLOAT, maxgrade FLOAT, icon TEXT)");
-        db.execSQL("INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, 0, 0, icon FROM tracks_old");
-        db.execSQL("DROP TABLE tracks_old");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+            recreateTable(db, "tracks",
+                    "CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, mingrade FLOAT, maxgrade FLOAT, icon TEXT)",
+                    "INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, 0, 0, icon FROM tracks_old");
+        });
     }
 
     /**
      * Add elevation gain
      */
     private void upgradeFrom26to27(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("ALTER TABLE trackpoints ADD COLUMN elevation_gain FLOAT");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("ALTER TABLE trackpoints ADD COLUMN elevation_gain FLOAT");
+        });
     }
 
     private void downgradeFrom27to26(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+        });
     }
 
     /**
      * Add foreign key constraints on trackId
      */
     private void upgradeFrom27to28(SQLiteDatabase db) {
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            // TrackPoints
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        // TrackPoints
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        // Markers
-        db.execSQL("ALTER TABLE waypoints RENAME TO markers_old");
-        db.execSQL("CREATE TABLE markers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, icon TEXT, trackid INTEGER NOT NULL, length FLOAT, duration INTEGER, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, bearing FLOAT, photoUrl TEXT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-
-        db.execSQL("INSERT INTO markers SELECT _id, name, description, category, icon, trackid, length, duration, longitude, latitude, time, elevation, accuracy, bearing, photoUrl FROM markers_old");
-        db.execSQL("DROP TABLE markers_old");
-
-        db.execSQL("CREATE INDEX markers_trackid_index ON markers(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+            // Markers (waypoints renamed to markers)
+            recreateTable(db, "waypoints",
+                    "CREATE TABLE markers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, icon TEXT, trackid INTEGER NOT NULL, length FLOAT, duration INTEGER, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, bearing FLOAT, photoUrl TEXT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO markers SELECT _id, name, description, category, icon, trackid, length, duration, longitude, latitude, time, elevation, accuracy, bearing, photoUrl FROM markers_old",
+                    "CREATE INDEX markers_trackid_index ON markers(trackid)");
+        });
     }
 
     private void downgradeFrom28to27(SQLiteDatabase db) {
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            // TrackPoints
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
 
-        // TrackPoints
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
+            // Markers (markers renamed back to waypoints; not a standard recreateTable since table name changes)
+            db.execSQL("CREATE TABLE waypoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, icon TEXT, trackid INTEGER, length FLOAT, duration INTEGER, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, bearing FLOAT, photoUrl TEXT)");
 
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+            db.execSQL("INSERT INTO waypoints SELECT _id, name, description, category, icon, trackid, length, duration, longitude, latitude, time, elevation, accuracy, bearing, photoUrl FROM markers");
+            db.execSQL("DROP TABLE markers");
 
-        // Markers
-        db.execSQL("CREATE TABLE waypoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, icon TEXT, trackid INTEGER, length FLOAT, duration INTEGER, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, bearing FLOAT, photoUrl TEXT)");
-
-        db.execSQL("INSERT INTO waypoints SELECT _id, name, description, category, icon, trackid, length, duration, longitude, latitude, time, elevation, accuracy, bearing, photoUrl FROM markers");
-        db.execSQL("DROP TABLE markers");
-
-        db.execSQL("CREATE INDEX waypoints_trackid_index ON waypoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+            db.execSQL("CREATE INDEX waypoints_trackid_index ON waypoints(trackid)");
+        });
     }
 
     /**
      * Add elevation loss.
      */
     private void upgradeFrom28to29(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("ALTER TABLE tracks ADD COLUMN elevationloss FLOAT");
-        db.execSQL("ALTER TABLE trackpoints ADD COLUMN elevation_loss FLOAT");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("ALTER TABLE tracks ADD COLUMN elevationloss FLOAT");
+            db.execSQL("ALTER TABLE trackpoints ADD COLUMN elevation_loss FLOAT");
+        });
     }
 
     private void downgradeFrom29to28(SQLiteDatabase db) {
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            // Tracks
+            db.execSQL("DROP INDEX tracks_uuid_index");
 
-        // Tracks
-        db.execSQL("DROP INDEX tracks_uuid_index");
+            recreateTable(db, "tracks",
+                    "CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, icon TEXT, uuid BLOB)",
+                    "INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, icon, uuid FROM tracks_old",
+                    "CREATE UNIQUE INDEX tracks_uuid_index ON tracks(uuid)");
 
-        db.execSQL("ALTER TABLE tracks RENAME TO tracks_old");
-        db.execSQL("CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, icon TEXT, uuid BLOB)");
-        db.execSQL("INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, icon, uuid FROM tracks_old");
-        db.execSQL("DROP TABLE tracks_old");
+            // TrackPoints
+            db.execSQL("DROP INDEX trackpoints_trackid_index");
 
-        db.execSQL("CREATE UNIQUE INDEX tracks_uuid_index ON tracks(uuid)");
-
-        // TrackPoints
-        db.execSQL("DROP INDEX trackpoints_trackid_index");
-
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+        });
     }
 
     /**
      * Move TrackPoint type (segment start vs. segment end) into separate column.
      */
     private void upgradeFrom29to30(SQLiteDatabase db) {
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            // TrackPoints
+            db.execSQL("ALTER TABLE trackpoints ADD COLUMN type TEXT CHECK(type IN (-2, -1, 0, 1))");
+            db.execSQL("UPDATE trackpoints SET type = -2, latitude = NULL, longitude = NULL WHERE latitude = 200 * 1E6");
+            db.execSQL("UPDATE trackpoints SET type = 1, latitude = NULL, longitude = NULL WHERE latitude = 100 * 1E6");
+            db.execSQL("UPDATE trackpoints SET type = 0 WHERE type IS NULL");
 
-        // TrackPoints
-        db.execSQL("ALTER TABLE trackpoints ADD COLUMN type TEXT CHECK(type IN (-2, -1, 0, 1))");
-        db.execSQL("UPDATE trackpoints SET type = -2, latitude = NULL, longitude = NULL WHERE latitude = 200 * 1E6");
-        db.execSQL("UPDATE trackpoints SET type = 1, latitude = NULL, longitude = NULL WHERE latitude = 100 * 1E6");
-        db.execSQL("UPDATE trackpoints SET type = 0 WHERE type IS NULL");
-
-        // PAUSE markers without RESUME were inserted automatically as segment markers if the distance between subsequent trackpoints was too great.
-        // Only stored data is time (local device time); not meaningful as trackpoints were stored with GPS time.
-        // 1. Mark there successors as SEGMENT_START_AUTOMATIC
-        db.execSQL(
-                "UPDATE trackpoints " +
-                        "SET type = -1 " +
-                        "WHERE type = 0 AND 1 = " +
-                        "(SELECT type FROM trackpoints AS T1 " +
-                        "WHERE trackpoints._id > t1._id " +
-                        "AND trackpoints.trackid = t1.trackid " +
-                        "ORDER BY t1._id DESC " +
-                        "LIMIT 1)");
-        // 2. Delete old PAUSE trackpoint
-        db.execSQL(
-                "DELETE FROM trackpoints" +
-                        " WHERE type = 1 AND -1 = " +
-                        "(SELECT type FROM trackpoints AS T1 " +
-                        "WHERE trackpoints._id < t1._id " +
-                        "AND trackpoints.trackid = t1.trackid " +
-                        "ORDER BY t1._id ASC " +
-                        "LIMIT 1)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+            // PAUSE markers without RESUME were inserted automatically as segment markers if the distance between subsequent trackpoints was too great.
+            // Only stored data is time (local device time); not meaningful as trackpoints were stored with GPS time.
+            // 1. Mark there successors as SEGMENT_START_AUTOMATIC
+            db.execSQL(
+                    "UPDATE trackpoints " +
+                            "SET type = -1 " +
+                            "WHERE type = 0 AND 1 = " +
+                            "(SELECT type FROM trackpoints AS T1 " +
+                            "WHERE trackpoints._id > t1._id " +
+                            "AND trackpoints.trackid = t1.trackid " +
+                            "ORDER BY t1._id DESC " +
+                            "LIMIT 1)");
+            // 2. Delete old PAUSE trackpoint
+            db.execSQL(
+                    "DELETE FROM trackpoints" +
+                            " WHERE type = 1 AND -1 = " +
+                            "(SELECT type FROM trackpoints AS T1 " +
+                            "WHERE trackpoints._id < t1._id " +
+                            "AND trackpoints.trackid = t1.trackid " +
+                            "ORDER BY t1._id ASC " +
+                            "LIMIT 1)");
+        });
     }
 
     private void downgradeFrom30to29(SQLiteDatabase db) {
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            // TrackPoints
+            // Info: this does not restore deleted trackpoints
+            db.execSQL("UPDATE trackpoints SET latitude = 200 * 1E6, longitude = NULL WHERE type = -2");
+            db.execSQL("UPDATE trackpoints SET latitude = 100 * 1E6, longitude = NULL WHERE type = 1");
 
-        // TrackPoints
-        // Info: this does not restore deleted trackpoints
-        db.execSQL("UPDATE trackpoints SET latitude = 200 * 1E6, longitude = NULL WHERE type = -2");
-        db.execSQL("UPDATE trackpoints SET latitude = 100 * 1E6, longitude = NULL WHERE type = 1");
-
-        // TrackPoints; identical to upgradeFrom27to28()
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+            // TrackPoints; identical to upgradeFrom27to28()
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+        });
     }
 
     /**
      * Add distance column to TrackPoint.
      */
     private void upgradeFrom30to31(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        // TrackPoints
-        db.execSQL("ALTER TABLE trackpoints ADD COLUMN sensor_distance FLOAT");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            // TrackPoints
+            db.execSQL("ALTER TABLE trackpoints ADD COLUMN sensor_distance FLOAT");
+        });
     }
 
     private void downgradeFrom31to30(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        // TrackPoints; identical to upgradeFrom27to28()
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1)), FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            // TrackPoints; identical to upgradeFrom27to28()
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1)), FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+        });
     }
 
     /**
      * Add TrackPoint type SENSORPOINT (2).
      */
     private void upgradeFrom31to32(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+        });
     }
 
     private void downgradeFrom32to31(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1)), sensor_distance FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1)), sensor_distance FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+        });
     }
 
     /**
      * Add timezone to Track.
      */
     private void upgradeFrom32to33(SQLiteDatabase db) {
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("ALTER TABLE tracks ADD COLUMN starttime_offset INTEGER");
 
-        db.execSQL("ALTER TABLE tracks ADD COLUMN starttime_offset INTEGER");
+            ZoneRules zoneRules = ZoneOffset.systemDefault().getRules();
 
-        ZoneRules zoneRules = ZoneOffset.systemDefault().getRules();
-
-        try (Cursor cursor = db.query("tracks", new String[]{"_id", "starttime"}, null, null, null, null, null)) {
-            if (cursor.moveToFirst()) {
+            updateEachRow(db, "tracks", new String[]{"_id", "starttime"}, (database, cursor) -> {
                 int trackIdIndex = cursor.getColumnIndexOrThrow("_id");
                 int startTimeIndex = cursor.getColumnIndexOrThrow("starttime");
-                do {
-                    Track.Id trackId = new Track.Id(cursor.getLong(trackIdIndex));
-                    long startTime = cursor.getLong(startTimeIndex);
 
-                    ContentValues cv = new ContentValues();
-                    cv.put("starttime_offset", zoneRules.getOffset(Instant.ofEpochMilli(startTime)).getTotalSeconds());
-                    db.update("tracks", cv, "_id = ?", new String[]{String.valueOf(trackId.id())});
-                } while (cursor.moveToNext());
-            }
-        }
+                Track.Id trackId = new Track.Id(cursor.getLong(trackIdIndex));
+                long startTime = cursor.getLong(startTimeIndex);
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+                ContentValues cv = new ContentValues();
+                cv.put("starttime_offset", zoneRules.getOffset(Instant.ofEpochMilli(startTime)).getTotalSeconds());
+                database.update("tracks", cv, "_id = ?", new String[]{String.valueOf(trackId.id())});
+            });
+        });
     }
 
     private void downgradeFrom33to32(SQLiteDatabase db) {
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("DROP INDEX tracks_uuid_index");
 
-        db.execSQL("DROP INDEX tracks_uuid_index");
-
-        db.execSQL("ALTER TABLE tracks RENAME TO tracks_old");
-        db.execSQL("CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, icon TEXT, uuid BLOB, elevationloss FLOAT)");
-        db.execSQL("INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, icon, uuid, elevationloss FROM tracks_old");
-        db.execSQL("DROP TABLE tracks_old");
-
-        db.execSQL("CREATE UNIQUE INDEX tracks_uuid_index ON tracks(uuid)");
-
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+            recreateTable(db, "tracks",
+                    "CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, icon TEXT, uuid BLOB, elevationloss FLOAT)",
+                    "INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, icon, uuid, elevationloss FROM tracks_old",
+                    "CREATE UNIQUE INDEX tracks_uuid_index ON tracks(uuid)");
+        });
     }
 
 
@@ -495,83 +410,55 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
      * Add accuracy_vertical
      */
     private void upgradeFrom33to34(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("ALTER TABLE trackpoints ADD COLUMN accuracy_vertical FLOAT");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("ALTER TABLE trackpoints ADD COLUMN accuracy_vertical FLOAT");
+        });
     }
 
     private void downgradeFrom34to33(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+        });
     }
 
     private void upgradeFrom34to35(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2, 3)), sensor_distance FLOAT, accuracy_vertical FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance, accuracy_vertical FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2, 3)), sensor_distance FLOAT, accuracy_vertical FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance, accuracy_vertical FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+        });
     }
 
     private void downgradeFrom35to34(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, accuracy_vertical FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance, accuracy_vertical FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, accuracy_vertical FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance, accuracy_vertical FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+        });
     }
 
     private void upgradeFrom35to36(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("UPDATE trackpoints SET type = 0 WHERE type = 2"); //SENSORPOINTs are now TRACKPOINTs
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 3)), sensor_distance FLOAT, accuracy_vertical FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance, accuracy_vertical FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("UPDATE trackpoints SET type = 0 WHERE type = 2"); //SENSORPOINTs are now TRACKPOINTs
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 3)), sensor_distance FLOAT, accuracy_vertical FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance, accuracy_vertical FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+        });
     }
 
     private void downgradeFrom36to35(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("ALTER TABLE trackpoints RENAME TO trackpoints_old");
-        db.execSQL("CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, accuracy_vertical FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance, accuracy_vertical FROM trackpoints_old");
-        db.execSQL("DROP TABLE trackpoints_old");
-
-        db.execSQL("CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            recreateTable(db, "trackpoints",
+                    "CREATE TABLE trackpoints (_id INTEGER PRIMARY KEY AUTOINCREMENT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, speed FLOAT, bearing FLOAT, sensor_heartrate FLOAT, sensor_cadence FLOAT, sensor_power FLOAT, elevation_gain FLOAT, elevation_loss FLOAT, type TEXT CHECK(type IN (-2, -1, 0, 1, 2)), sensor_distance FLOAT, accuracy_vertical FLOAT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO trackpoints SELECT _id, trackid, longitude, latitude, time, elevation, accuracy, speed, bearing, sensor_heartrate, sensor_cadence, sensor_power, elevation_gain, elevation_gain, type, sensor_distance, accuracy_vertical FROM trackpoints_old",
+                    "CREATE INDEX trackpoints_trackid_index ON trackpoints(trackid)");
+        });
     }
 
     private void upgradeFrom36to37(SQLiteDatabase db) {
@@ -599,75 +486,94 @@ class CustomSQLiteOpenHelper extends SQLiteOpenHelper {
                 Map.entry("UNKNOWN", "unknown")
                 );
 
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("ALTER TABLE tracks ADD COLUMN activity_type TEXT");
 
-        db.execSQL("ALTER TABLE tracks ADD COLUMN activity_type TEXT");
-
-        try (Cursor cursor = db.query("tracks", new String[]{"_id", "icon", "category"}, null, null, null, null, null)) {
-            if (cursor.moveToFirst()) {
+            updateEachRow(db, "tracks", new String[]{"_id", "icon", "category"}, (database, cursor) -> {
                 int trackIdIndex = cursor.getColumnIndexOrThrow("_id");
                 int iconIndex = cursor.getColumnIndexOrThrow("icon");
                 int activityTypeLocalizedIndex = cursor.getColumnIndexOrThrow("category");
-                do {
-                    Track.Id trackId = new Track.Id(cursor.getLong(trackIdIndex));
-                    String iconId = cursor.getString(iconIndex);
-                    String activityTypeLocalized = cursor.getString(activityTypeLocalizedIndex);
 
-                    ActivityType activityType = ActivityType.findByLocalizedString(context, activityTypeLocalized);
-                    if (activityType.equals(ActivityType.UNKNOWN)) {
-                        String activityTypeId = activityIcon2ActivityTypeId.get(iconId);
-                        activityType = ActivityType.findBy(activityTypeId);
-                    }
+                Track.Id trackId = new Track.Id(cursor.getLong(trackIdIndex));
+                String iconId = cursor.getString(iconIndex);
+                String activityTypeLocalized = cursor.getString(activityTypeLocalizedIndex);
 
-                    ContentValues cv = new ContentValues();
-                    cv.put("activity_type", activityType.getId());
-                    db.update("tracks", cv, "_id = ?", new String[]{String.valueOf(trackId.id())});
-                } while (cursor.moveToNext());
-            }
-        }
+                ActivityType activityType = ActivityType.findByLocalizedString(context, activityTypeLocalized);
+                if (activityType.equals(ActivityType.UNKNOWN)) {
+                    String activityTypeId = activityIcon2ActivityTypeId.get(iconId);
+                    activityType = ActivityType.findBy(activityTypeId);
+                }
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+                ContentValues cv = new ContentValues();
+                cv.put("activity_type", activityType.getId());
+                database.update("tracks", cv, "_id = ?", new String[]{String.valueOf(trackId.id())});
+            });
+        });
     }
 
     private void downgradeFrom37to36(SQLiteDatabase db) {
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("DROP INDEX tracks_uuid_index");
 
-        db.execSQL("DROP INDEX tracks_uuid_index");
-
-        db.execSQL("ALTER TABLE tracks RENAME TO tracks_old");
-        db.execSQL("CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, icon TEXT, uuid BLOB, elevationloss FLOAT, starttime_offset INTEGER)");
-        db.execSQL("INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, icon, uuid, elevationloss, starttime_offset FROM tracks_old");
-        db.execSQL("DROP TABLE tracks_old");
-
-        db.execSQL("CREATE UNIQUE INDEX tracks_uuid_index ON tracks(uuid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+            recreateTable(db, "tracks",
+                    "CREATE TABLE tracks (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, starttime INTEGER, stoptime INTEGER, numpoints INTEGER, totaldistance FLOAT, totaltime INTEGER, movingtime INTEGER, avgspeed FLOAT, avgmovingspeed FLOAT, maxspeed FLOAT, minelevation FLOAT, maxelevation FLOAT, elevationgain FLOAT, icon TEXT, uuid BLOB, elevationloss FLOAT, starttime_offset INTEGER)",
+                    "INSERT INTO tracks SELECT _id, name, description, category, starttime, stoptime, numpoints, totaldistance, totaltime, movingtime, avgspeed, avgmovingspeed, maxspeed, minelevation, maxelevation, elevationgain, icon, uuid, elevationloss, starttime_offset FROM tracks_old",
+                    "CREATE UNIQUE INDEX tracks_uuid_index ON tracks(uuid)");
+        });
     }
 
     private void upgradeFrom37to38(SQLiteDatabase db) {
-        db.beginTransaction();
-
-        db.execSQL("ALTER TABLE markers RENAME TO markers_old");
-        db.execSQL("CREATE TABLE markers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, icon TEXT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, bearing FLOAT, photoUrl TEXT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)");
-        db.execSQL("INSERT INTO markers SELECT _id, name, description, category, icon, trackid, longitude, latitude, time, elevation, accuracy, bearing, photoUrl FROM markers_old");
-        db.execSQL("DROP TABLE markers_old");
-
-        db.execSQL("CREATE INDEX markers_trackid_index ON markers(trackid)");
-
-        db.setTransactionSuccessful();
-        db.endTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            recreateTable(db, "markers",
+                    "CREATE TABLE markers (_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, category TEXT, icon TEXT, trackid INTEGER NOT NULL, longitude INTEGER, latitude INTEGER, time INTEGER, elevation FLOAT, accuracy FLOAT, bearing FLOAT, photoUrl TEXT, FOREIGN KEY (trackid) REFERENCES tracks(_id) ON UPDATE CASCADE ON DELETE CASCADE)",
+                    "INSERT INTO markers SELECT _id, name, description, category, icon, trackid, longitude, latitude, time, elevation, accuracy, bearing, photoUrl FROM markers_old",
+                    "CREATE INDEX markers_trackid_index ON markers(trackid)");
+        });
     }
 
     private void downgradeFrom38to37(SQLiteDatabase db) {
-        db.beginTransaction();
+        DbUtils.runInTransaction(db, () -> {
+            db.execSQL("ALTER TABLE markers ADD COLUMN length FLOAT");
+            db.execSQL("ALTER TABLE markers ADD COLUMN duration INTEGER");
+        });
+    }
 
-        db.execSQL("ALTER TABLE markers ADD COLUMN length FLOAT");
-        db.execSQL("ALTER TABLE markers ADD COLUMN duration INTEGER");
+    // --- Helper methods for migration patterns ---
 
-        db.setTransactionSuccessful();
-        db.endTransaction();
+    /**
+     * Recreates a table by renaming the old one to {@code tableName_old}, creating a new table,
+     * copying data, dropping the old table, and creating indexes.
+     * <p>
+     * Handles the common SQLite pattern: ALTER RENAME → CREATE → INSERT SELECT → DROP → CREATE INDEX.
+     *
+     * @param tableName the table name (old table will be renamed to {@code tableName_old})
+     * @param createSql the CREATE TABLE SQL for the new table
+     * @param insertSql the INSERT INTO ... SELECT ... FROM ... SQL
+     * @param indexSqls optional CREATE INDEX SQL statements
+     */
+    private void recreateTable(SQLiteDatabase db, String tableName, String createSql, String insertSql, String... indexSqls) {
+        String oldName = tableName + "_old";
+        db.execSQL("ALTER TABLE " + tableName + " RENAME TO " + oldName);
+        db.execSQL(createSql);
+        db.execSQL(insertSql);
+        db.execSQL("DROP TABLE " + oldName);
+        for (String idx : indexSqls) {
+            db.execSQL(idx);
+        }
+    }
+
+    /**
+     * Iterates all rows in a table and applies an update function.
+     * Used for data migrations that need row-by-row processing.
+     */
+    private void updateEachRow(SQLiteDatabase db, String table, String[] projection, RowUpdater updater) {
+        try (Cursor cursor = db.query(table, projection, null, null, null, null, null)) {
+            if (cursor.moveToFirst()) {
+                do {
+                    updater.updateRow(db, cursor);
+                } while (cursor.moveToNext());
+            }
+        }
     }
 
 }

@@ -96,17 +96,17 @@ public class CustomContentProvider extends ContentProvider {
 
     public CustomContentProvider() {
         uriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
-        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TrackPointsColumns.CONTENT_URI_BY_ID.getPath(), UrlType.TRACKPOINTS.ordinal());
-        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TrackPointsColumns.CONTENT_URI_BY_ID.getPath() + "/#", UrlType.TRACKPOINTS_BY_ID.ordinal());
-        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TrackPointsColumns.CONTENT_URI_BY_TRACKID.getPath() + "/*", UrlType.TRACKPOINTS_BY_TRACKID.ordinal());
+        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TrackPointsColumns.CONTENT_URI_BY_ID.getPath(), UrlType.TRACKPOINTS.matchCode);
+        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TrackPointsColumns.CONTENT_URI_BY_ID.getPath() + "/#", UrlType.TRACKPOINTS_BY_ID.matchCode);
+        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TrackPointsColumns.CONTENT_URI_BY_TRACKID.getPath() + "/*", UrlType.TRACKPOINTS_BY_TRACKID.matchCode);
 
-        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TracksColumns.CONTENT_URI.getPath(), UrlType.TRACKS.ordinal());
-        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TracksColumns.CONTENT_URI_SENSOR_STATS.getPath() + "/#", UrlType.TRACKS_SENSOR_STATS.ordinal());
-        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TracksColumns.CONTENT_URI.getPath() + "/*", UrlType.TRACKS_BY_ID.ordinal());
+        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TracksColumns.CONTENT_URI.getPath(), UrlType.TRACKS.matchCode);
+        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TracksColumns.CONTENT_URI_SENSOR_STATS.getPath() + "/#", UrlType.TRACKS_SENSOR_STATS.matchCode);
+        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, TracksColumns.CONTENT_URI.getPath() + "/*", UrlType.TRACKS_BY_ID.matchCode);
 
-        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, MarkerColumns.CONTENT_URI.getPath(), UrlType.MARKERS.ordinal());
-        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, MarkerColumns.CONTENT_URI.getPath() + "/#", UrlType.MARKERS_BY_ID.ordinal());
-        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, MarkerColumns.CONTENT_URI_BY_TRACKID.getPath() + "/*", UrlType.MARKERS_BY_TRACKID.ordinal());
+        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, MarkerColumns.CONTENT_URI.getPath(), UrlType.MARKERS.matchCode);
+        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, MarkerColumns.CONTENT_URI.getPath() + "/#", UrlType.MARKERS_BY_ID.matchCode);
+        uriMatcher.addURI(ContentProviderUtils.AUTHORITY_PACKAGE, MarkerColumns.CONTENT_URI_BY_TRACKID.getPath() + "/*", UrlType.MARKERS_BY_TRACKID.matchCode);
     }
 
     @Override
@@ -144,15 +144,11 @@ public class CustomContentProvider extends ContentProvider {
 
         Log.w(TAG, "Deleting from table " + table);
         int totalChangesBefore = getTotalChanges();
-        int deletedRowsFromTable;
-        try {
-            db.beginTransaction();
-            deletedRowsFromTable = db.delete(table, where, selectionArgs);
-            Log.i(TAG, "Deleted " + deletedRowsFromTable + " rows of table " + table);
-            db.setTransactionSuccessful();
-        } finally {
-            db.endTransaction();
-        }
+        int deletedRowsFromTable = DbUtils.runInTransaction(db, () -> {
+            int rows = db.delete(table, where, selectionArgs);
+            Log.i(TAG, "Deleted " + rows + " rows of table " + table);
+            return rows;
+        });
         getContext().getContentResolver().notifyChange(url, null, false);
 
         int totalChanges = getTotalChanges() - totalChangesBefore;
@@ -196,37 +192,27 @@ public class CustomContentProvider extends ContentProvider {
         if (initialValues == null) {
             initialValues = new ContentValues();
         }
-        Uri result;
-        try {
-            db.beginTransaction();
-            result = insertContentValues(url, getUrlType(url), initialValues);
-            db.setTransactionSuccessful();
-        } finally {
-            db.endTransaction();
-        }
+        Uri result = DbUtils.runInTransaction(db, () ->
+                insertContentValues(url, getUrlType(url), initialValues));
         getContext().getContentResolver().notifyChange(url, null, false);
         return result;
     }
 
     @Override
     public int bulkInsert(@NonNull Uri url, @NonNull ContentValues[] valuesBulk) {
-        int numInserted;
-        try {
+        int numInserted = DbUtils.runInTransaction(db, () -> {
             // Use a transaction in order to make the insertions run as a single batch
-            db.beginTransaction();
-
             UrlType urlType = getUrlType(url);
-            for (numInserted = 0; numInserted < valuesBulk.length; numInserted++) {
-                ContentValues contentValues = valuesBulk[numInserted];
+            int count;
+            for (count = 0; count < valuesBulk.length; count++) {
+                ContentValues contentValues = valuesBulk[count];
                 if (contentValues == null) {
                     contentValues = new ContentValues();
                 }
                 insertContentValues(url, urlType, contentValues);
             }
-            db.setTransactionSuccessful();
-        } finally {
-            db.endTransaction();
-        }
+            return count;
+        });
         getContext().getContentResolver().notifyChange(url, null, false);
         return numInserted;
     }
@@ -285,7 +271,6 @@ public class CustomContentProvider extends ContentProvider {
 
     @Override
     public int update(@NonNull Uri url, ContentValues values, String where, String[] selectionArgs) {
-        // TODO Use SQLiteQueryBuilder
         String table;
         String whereClause;
         switch (getUrlType(url)) {
@@ -295,10 +280,7 @@ public class CustomContentProvider extends ContentProvider {
             }
             case TRACKPOINTS_BY_ID -> {
                 table = TrackPointsColumns.TABLE_NAME;
-                whereClause = TrackPointsColumns._ID + "=" + ContentUris.parseId(url);
-                if (!TextUtils.isEmpty(where)) {
-                    whereClause += " AND (" + where + ")";
-                }
+                whereClause = DbUtils.buildWhereById(TrackPointsColumns._ID, ContentUris.parseId(url), where);
             }
             case TRACKS -> {
                 table = TracksColumns.TABLE_NAME;
@@ -306,10 +288,7 @@ public class CustomContentProvider extends ContentProvider {
             }
             case TRACKS_BY_ID -> {
                 table = TracksColumns.TABLE_NAME;
-                whereClause = TracksColumns._ID + "=" + ContentUris.parseId(url);
-                if (!TextUtils.isEmpty(where)) {
-                    whereClause += " AND (" + where + ")";
-                }
+                whereClause = DbUtils.buildWhereById(TracksColumns._ID, ContentUris.parseId(url), where);
             }
             case MARKERS -> {
                 table = MarkerColumns.TABLE_NAME;
@@ -317,34 +296,21 @@ public class CustomContentProvider extends ContentProvider {
             }
             case MARKERS_BY_ID -> {
                 table = MarkerColumns.TABLE_NAME;
-                whereClause = MarkerColumns._ID + "=" + ContentUris.parseId(url);
-                if (!TextUtils.isEmpty(where)) {
-                    whereClause += " AND (" + where + ")";
-                }
+                whereClause = DbUtils.buildWhereById(MarkerColumns._ID, ContentUris.parseId(url), where);
             }
             default -> throw new IllegalArgumentException("Unknown url " + url);
         }
-        int count;
-        try {
-            db.beginTransaction();
-            count = db.update(table, values, whereClause, selectionArgs);
-            db.setTransactionSuccessful();
-        } finally {
-            db.endTransaction();
-        }
+        final String finalTable = table;
+        final String finalWhereClause = whereClause;
+        int count = DbUtils.runInTransaction(db, () ->
+                db.update(finalTable, values, finalWhereClause, selectionArgs));
         getContext().getContentResolver().notifyChange(url, null, false);
         return count;
     }
 
     @NonNull
     private UrlType getUrlType(Uri url) {
-        UrlType[] urlTypes = UrlType.values();
-        int matchIndex = uriMatcher.match(url);
-        if (0 <= matchIndex && matchIndex < urlTypes.length) {
-            return urlTypes[matchIndex];
-        }
-
-        throw new IllegalArgumentException("Unknown URL " + url);
+        return UrlType.fromMatchCode(uriMatcher.match(url));
     }
 
     /**
@@ -356,51 +322,51 @@ public class CustomContentProvider extends ContentProvider {
      */
     private Uri insertContentValues(Uri url, UrlType urlType, ContentValues contentValues) {
         return switch (urlType) {
-            case TRACKPOINTS -> insertTrackPoint(url, contentValues);
-            case TRACKS -> insertTrack(url, contentValues);
-            case MARKERS -> insertMarker(url, contentValues);
+            case TRACKPOINTS -> {
+                if (!contentValues.containsKey(TrackPointsColumns.TIME)) {
+                    throw new IllegalArgumentException("Latitude, longitude, and time values are required.");
+                }
+                yield insertRow(TrackPointsColumns.TABLE_NAME, contentValues, TrackPointsColumns.CONTENT_URI_BY_ID, url);
+            }
+            case TRACKS -> insertRow(TracksColumns.TABLE_NAME, contentValues, TracksColumns.CONTENT_URI, url);
+            case MARKERS -> insertRow(MarkerColumns.TABLE_NAME, contentValues, MarkerColumns.CONTENT_URI, url);
             default -> throw new IllegalArgumentException("Unknown url " + url);
         };
     }
 
-    private Uri insertTrackPoint(Uri url, ContentValues values) {
-        boolean hasTime = values.containsKey(TrackPointsColumns.TIME);
-        if (!hasTime) {
-            throw new IllegalArgumentException("Latitude, longitude, and time values are required.");
-        }
-        long rowId = db.insert(TrackPointsColumns.TABLE_NAME, TrackPointsColumns._ID, values);
+    private Uri insertRow(String table, ContentValues values, Uri baseUri, Uri url) {
+        long rowId = db.insert(table, table, values);
         if (rowId >= 0) {
-            return ContentUris.appendId(TrackPointsColumns.CONTENT_URI_BY_ID.buildUpon(), rowId).build();
+            return ContentUris.appendId(baseUri.buildUpon(), rowId).build();
         }
-        throw new SQLiteException("Failed to insert a track point " + url);
-    }
-
-    private Uri insertTrack(Uri url, ContentValues contentValues) {
-        long rowId = db.insert(TracksColumns.TABLE_NAME, TracksColumns._ID, contentValues);
-        if (rowId >= 0) {
-            return ContentUris.appendId(TracksColumns.CONTENT_URI.buildUpon(), rowId).build();
-        }
-        throw new SQLException("Failed to insert a track " + url);
-    }
-
-    private Uri insertMarker(Uri url, ContentValues contentValues) {
-        long rowId = db.insert(MarkerColumns.TABLE_NAME, MarkerColumns._ID, contentValues);
-        if (rowId >= 0) {
-            return ContentUris.appendId(MarkerColumns.CONTENT_URI.buildUpon(), rowId).build();
-        }
-        throw new SQLException("Failed to insert a marker " + url);
+        throw new SQLException("Failed to insert into " + table + " " + url);
     }
 
     @VisibleForTesting
     enum UrlType {
-        TRACKPOINTS,
-        TRACKPOINTS_BY_ID,
-        TRACKPOINTS_BY_TRACKID,
-        TRACKS,
-        TRACKS_BY_ID,
-        TRACKS_SENSOR_STATS,
-        MARKERS,
-        MARKERS_BY_ID,
-        MARKERS_BY_TRACKID
+        TRACKPOINTS(0),
+        TRACKPOINTS_BY_ID(1),
+        TRACKPOINTS_BY_TRACKID(2),
+        TRACKS(3),
+        TRACKS_SENSOR_STATS(4),
+        TRACKS_BY_ID(5),
+        MARKERS(6),
+        MARKERS_BY_ID(7),
+        MARKERS_BY_TRACKID(8);
+
+        final int matchCode;
+
+        UrlType(int matchCode) {
+            this.matchCode = matchCode;
+        }
+
+        static UrlType fromMatchCode(int matchCode) {
+            for (UrlType type : values()) {
+                if (type.matchCode == matchCode) {
+                    return type;
+                }
+            }
+            throw new IllegalArgumentException("Unknown match code: " + matchCode);
+        }
     }
 }
