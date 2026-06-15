@@ -21,14 +21,10 @@ import android.net.Uri;
 import android.util.Log;
 
 import org.xml.sax.Attributes;
-import org.xml.sax.Locator;
-import org.xml.sax.helpers.DefaultHandler;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Locale;
 
 import de.dennisguse.opentracks.data.models.Altitude;
@@ -36,7 +32,6 @@ import de.dennisguse.opentracks.data.models.Distance;
 import de.dennisguse.opentracks.data.models.Marker;
 import de.dennisguse.opentracks.data.models.Position;
 import de.dennisguse.opentracks.data.models.Speed;
-import de.dennisguse.opentracks.data.models.Track;
 import de.dennisguse.opentracks.data.models.TrackPoint;
 import de.dennisguse.opentracks.util.StringUtils;
 
@@ -52,7 +47,7 @@ import de.dennisguse.opentracks.util.StringUtils;
  *
  * @author Jimmy Shih
  */
-public class GPXTrackImporter extends DefaultHandler implements XMLImporter.TrackParser {
+public class GPXTrackImporter extends XMLTrackImporter {
 
     private static final String TAG = GPXTrackImporter.class.getSimpleName();
 
@@ -86,17 +81,8 @@ public class GPXTrackImporter extends DefaultHandler implements XMLImporter.Trac
     private static final String TAG_EXTENSION_DISTANCE = "opentracks:distance";
     private static final String TAG_EXTENSION_ACCURACY_HORIZONTAL = "opentracks:accuracy_horizontal";
     private static final String TAG_EXTENSION_ACCURACY_VERTICAL = "opentracks:accuracy_vertical";
-    private Locator locator;
-
-    private final Context context;
 
     private ZoneOffset zoneOffset;
-
-    // Belongs to the current track
-    private final ArrayList<Marker> markers = new ArrayList<>();
-
-    // The current element content
-    private String content = "";
 
     private String name;
     private String description;
@@ -121,16 +107,8 @@ public class GPXTrackImporter extends DefaultHandler implements XMLImporter.Trac
 
     private final LinkedList<TrackPoint> currentSegment = new LinkedList<>();
 
-    private final TrackImporter trackImporter;
-
     public GPXTrackImporter(Context context, TrackImporter trackImporter) {
-        this.context = context;
-        this.trackImporter = trackImporter;
-    }
-
-    @Override
-    public void setDocumentLocator(Locator locator) {
-        this.locator = locator;
+        super(context, trackImporter);
     }
 
     @Override
@@ -149,11 +127,6 @@ public class GPXTrackImporter extends DefaultHandler implements XMLImporter.Trac
                 onTrackPointStart(attributes);
                 break;
         }
-    }
-
-    @Override
-    public void characters(char[] ch, int start, int length) {
-        content += new String(ch, start, length);
     }
 
     @Override
@@ -451,29 +424,5 @@ public class GPXTrackImporter extends DefaultHandler implements XMLImporter.Trac
             marker.setPhotoUrl(photoUrl);
         }
         markers.add(marker);
-    }
-
-    private String createErrorMessage(String message) {
-        return String.format(Locale.US, "Parsing error at line: %d column: %d. %s", locator.getLineNumber(), locator.getColumnNumber(), message);
-    }
-
-    private void onFileEnd() {
-        trackImporter.addMarkers(markers);
-        trackImporter.finish();
-    }
-
-    @Override
-    public DefaultHandler getHandler() {
-        return this;
-    }
-
-    @Override
-    public List<Track.Id> getImportTrackIds() {
-        return trackImporter.getTrackIds();
-    }
-
-    @Override
-    public void cleanImport() {
-        trackImporter.cleanImport();
     }
 }

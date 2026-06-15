@@ -14,12 +14,12 @@ import androidx.documentfile.provider.DocumentFile;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 import de.dennisguse.opentracks.R;
 import de.dennisguse.opentracks.data.ContentProviderUtils;
 import de.dennisguse.opentracks.data.models.Distance;
 import de.dennisguse.opentracks.data.models.Track;
-import de.dennisguse.opentracks.io.file.TrackFileFormat;
 import de.dennisguse.opentracks.settings.PreferencesUtils;
 import de.dennisguse.opentracks.util.FileUtils;
 
@@ -58,17 +58,13 @@ public class ImportService extends JobIntentService {
 
             TrackImporter trackImporter = new TrackImporter(this, new ContentProviderUtils(this), maxRecordingDistance, preventReimport);
 
-            if (TrackFileFormat.GPX.getExtension().equals(fileExtension)) {
-                trackIds.addAll(new XMLImporter(new GPXTrackImporter(this, trackImporter)).importFile(this, file.getUri()));
-            } else if (TrackFileFormat.KML_WITH_TRACKDETAIL_AND_SENSORDATA.getExtension().equals(fileExtension)) {
-                trackIds.addAll(new XMLImporter(new KMLTrackImporter(this, trackImporter)).importFile(this, file.getUri()));
-            } else if (TrackFileFormat.KMZ_WITH_TRACKDETAIL_AND_SENSORDATA_AND_PICTURES.getExtension().equals(fileExtension)) {
-                trackIds.addAll(new KMZTrackImporter(this, trackImporter).importFile(file.getUri()));
-            } else {
+            List<Track.Id> imported = ImporterFactory.importFile(this, trackImporter, file.getUri(), fileExtension);
+            if (imported == null) {
                 Log.d(TAG, "Unsupported file format.");
                 sendResult(ImportServiceResultReceiver.RESULT_CODE_ERROR, null, file, getString(R.string.import_unsupported_format));
                 return;
             }
+            trackIds.addAll(imported);
 
             if (!trackIds.isEmpty()) {
                 sendResult(ImportServiceResultReceiver.RESULT_CODE_IMPORTED, trackIds, file, getString(R.string.import_file_imported, file.getName()));

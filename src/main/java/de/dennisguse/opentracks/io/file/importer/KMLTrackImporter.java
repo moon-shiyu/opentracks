@@ -22,22 +22,18 @@ import android.net.Uri;
 import android.util.Log;
 
 import org.xml.sax.Attributes;
-import org.xml.sax.Locator;
 import org.xml.sax.SAXException;
-import org.xml.sax.helpers.DefaultHandler;
 
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 
 import de.dennisguse.opentracks.data.models.Distance;
 import de.dennisguse.opentracks.data.models.Marker;
 import de.dennisguse.opentracks.data.models.Position;
 import de.dennisguse.opentracks.data.models.Speed;
-import de.dennisguse.opentracks.data.models.Track;
 import de.dennisguse.opentracks.data.models.TrackPoint;
 import de.dennisguse.opentracks.io.file.exporter.KMLTrackExporter;
 import de.dennisguse.opentracks.util.StringUtils;
@@ -47,7 +43,7 @@ import de.dennisguse.opentracks.util.StringUtils;
  *
  * @author Jimmy Shih
  */
-public class KMLTrackImporter extends DefaultHandler implements XMLImporter.TrackParser {
+public class KMLTrackImporter extends XMLTrackImporter {
 
     private static final String TAG = KMLTrackImporter.class.getSimpleName();
 
@@ -87,10 +83,6 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
     // Until v4.13.0, was in contradiction with KML2.3 standard; keeping backward compatibility.
     public static final String EXTENDED_DATA_TYPE_HEART_RATE_LEGACY = "heart_rate";
 
-    private Locator locator;
-
-    private final Context context;
-
     // Belongs to the current track
     private ZoneOffset zoneOffset;
 
@@ -110,11 +102,6 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
     private final ArrayList<Float> accuracyHorizontal = new ArrayList<>();
     private final ArrayList<Float> accuracyVertical = new ArrayList<>();
 
-    private final ArrayList<Marker> markers = new ArrayList<>();
-
-    // The current element content
-    private String content = "";
-
     private String name;
     private String description;
     private String activityType;
@@ -126,16 +113,8 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
     private Uri photoUrl;
     private String uuid;
 
-    private final TrackImporter trackImporter;
-
     public KMLTrackImporter(Context context, TrackImporter trackImporter) {
-        this.context = context;
-        this.trackImporter = trackImporter;
-    }
-
-    @Override
-    public void setDocumentLocator(Locator locator) {
-        this.locator = locator;
+        super(context, trackImporter);
     }
 
     @Override
@@ -154,11 +133,6 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
             case TAG_EXTENDED_DATA, TAG_SIMPLE_ARRAY_DATA, TAG_KML22_SIMPLE_ARRAY_DATA ->
                     dataType = attributes.getValue(ATTRIBUTE_NAME);
         }
-    }
-
-    @Override
-    public void characters(char[] ch, int start, int length) {
-        content += new String(ch, start, length);
     }
 
     @Override
@@ -444,29 +418,5 @@ public class KMLTrackImporter extends DefaultHandler implements XMLImporter.Trac
             default ->
                     Log.w(TAG, "Data from extended data " + dataType + " is not (yet) supported.");
         }
-    }
-
-    private String createErrorMessage(String message) {
-        return String.format(Locale.US, "Parsing error at line: %d column: %d. %s", locator.getLineNumber(), locator.getColumnNumber(), message);
-    }
-
-    private void onFileEnd() {
-        trackImporter.addMarkers(markers);
-        trackImporter.finish();
-    }
-
-    @Override
-    public DefaultHandler getHandler() {
-        return this;
-    }
-
-    @Override
-    public List<Track.Id> getImportTrackIds() {
-        return trackImporter.getTrackIds();
-    }
-
-    @Override
-    public void cleanImport() {
-        trackImporter.cleanImport();
     }
 }
